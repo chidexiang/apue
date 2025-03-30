@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <signal.h>
 
 #include "ds18b20.h"
 
@@ -33,6 +34,15 @@ void print_usage(char *progname);
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 
+int g_error = 0;
+
+void sig_sigpipe(int signum)
+{
+	if (SIGPIPE == signum)
+	{
+		g_error = 1;
+	}
+}
 int main(int argc, char **argv)
 {
 	int                     port = 0;
@@ -60,6 +70,8 @@ int main(int argc, char **argv)
 	int                     ch;
 
 	progname = basename(argv[0]);
+
+	signal(SIGPIPE, sig_sigpipe);
 
 	//输入命令行参数
 	while ( (ch = getopt_long(argc, argv, "i:p:d:ht:", opts, NULL)) != -1)
@@ -126,13 +138,13 @@ int main(int argc, char **argv)
 		memset(buf, 0, sizeof(buf));
 		time(&rawtime);
 		snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
-		if (write(sockfd, buf, strlen(buf)) < 0)
+		if ( (write(sockfd, buf, strlen(buf)) < 0) || ( g_error == 1))
 		{
 			printf("write to server failure: %s\n", strerror(errno));
 		    handle_disconnection(&sockfd, &servaddr, servip, &port);
 			continue;
 		}
-		
+#if 0	
 		//测试接受服务器端数据
 		memset(buf, 0, sizeof(buf));
 		rv = read(sockfd, buf, sizeof(buf));
@@ -144,6 +156,7 @@ int main(int argc, char **argv)
 		}
 
 		printf("read %d from server: %s\n", rv, buf);
+#endif
 
 		sleep(timeout-2);
 	}
@@ -210,6 +223,7 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		if (*sockfd != -1)
 		{
 			printf("Reconnect to server!\n");
+			g_error = 0;
 			return ;
 		}
 		i++;
