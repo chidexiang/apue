@@ -22,6 +22,7 @@
 #include <netdb.h>
 #include <libgen.h>
 #include <stdlib.h>
+#include <time.h>
 #include "ds18b20.h"
 
 #define MSG_STR "connect success"
@@ -40,12 +41,15 @@ int main(int argc, char **argv)
 	struct addrinfo         hints, *res, *p;
 	int                     status = 1;
 	float                   temp;
+	time_t                  rawtime;
+	int						timeout = 5;// 定时时长
 
 	struct option           opts[] = {
 		{"ipaddr", required_argument, NULL, 'i'},
 		{"port", required_argument, NULL, 'p'},
 		{"dmname", required_argument, NULL, 'd'},
 		{"help", no_argument, NULL, 'h'},
+		{"time", required_argument, NULL, 't'},
 		{NULL, 0, NULL, 0}
 	};
 	int                     ch;
@@ -53,7 +57,7 @@ int main(int argc, char **argv)
 	progname = basename(argv[0]);
 
 	//输入命令行参数
-	while ( (ch = getopt_long(argc, argv, "i:p:d:h", opts, NULL)) != -1)
+	while ( (ch = getopt_long(argc, argv, "i:p:d:ht:", opts, NULL)) != -1)
 	{
 		switch(ch)
 		{
@@ -65,6 +69,9 @@ int main(int argc, char **argv)
 				break;
 			case 'h':
 				print_usage(progname);
+				break;
+			case 't':
+				timeout = atoi(optarg);
 				break;
 			case 'd':
 				hostname = optarg;
@@ -120,14 +127,19 @@ int main(int argc, char **argv)
 	//conncet连接
 	if (connect(confd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
 	{
-		printf("connect server failure: %S\n", strerror(errno));
+		printf("connect server failure: %s\n", strerror(errno));
 		return -3;
 	}
+
+	//每一定时间上传数据
+	for( ; ;)
+	{
 
 	//测试传输数据到服务器端
 	rv = gettemp(&temp);
 	memset(buf, 0, sizeof(buf));
-	snprintf(buf, sizeof(buf), "%f", temp);
+	time(&rawtime);
+	snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
 	if (write(confd, buf, strlen(buf)) < 0)
 	{
 		printf("write to server failure: %s\n", strerror(errno));
@@ -149,6 +161,8 @@ int main(int argc, char **argv)
 	}
 	printf("read %d from server: %s\n", rv, buf);
 
+	sleep(timeout-1);
+	}
 cleanup:
 	close(confd);
 	return 0;
