@@ -22,6 +22,7 @@
 #include <netdb.h>
 #include <libgen.h>
 #include <stdlib.h>
+#include "ds18b20.h"
 
 #define MSG_STR "connect success"
 
@@ -38,6 +39,7 @@ int main(int argc, char **argv)
 	const char             *hostname;
 	struct addrinfo         hints, *res, *p;
 	int                     status = 1;
+	float                   temp;
 
 	struct option           opts[] = {
 		{"ipaddr", required_argument, NULL, 'i'},
@@ -123,13 +125,17 @@ int main(int argc, char **argv)
 	}
 
 	//测试传输数据到服务器端
-	if (write(confd, MSG_STR, strlen(MSG_STR)) < 0)
+	rv = gettemp(&temp);
+	memset(buf, 0, sizeof(buf));
+	snprintf(buf, sizeof(buf), "%f", temp);
+	if (write(confd, buf, strlen(buf)) < 0)
 	{
 		printf("write to server failure: %s\n", strerror(errno));
 		goto cleanup;
 	}
 
 	//测试接受服务器端数据
+	memset(buf, 0, sizeof(buf));
 	rv = read(confd, buf, sizeof(buf));
 	if (rv < 0)
 	{
