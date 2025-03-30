@@ -28,13 +28,13 @@
 void print_usage(char *progname);
 int main(int argc, char **argv)
 {
-	int						port = 0;
-	char				   *servip = NULL;
-	int						confd;
-	int						rv = -1;
-	struct sockaddr_in		servaddr, *addr;
-	char 					buf[1024];
-	char				   *progname = NULL;
+	int                     port = 0;
+	char                   *servip = NULL;
+	int                     confd;
+	int                     rv = -1;
+	struct sockaddr_in      servaddr, *addr;
+	char                    buf[1024];
+	char                   *progname = NULL;
 	const char             *hostname;
 	struct addrinfo         hints, *res, *p;
 	int                     status = 1;
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
 		{"help", no_argument, NULL, 'h'},
 		{NULL, 0, NULL, 0}
 	};
-	int						ch;
+	int                     ch;
 
 	progname = basename(argv[0]);
 
