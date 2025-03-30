@@ -28,11 +28,14 @@
 #define MSG_STR "connect success"
 
 void print_usage(char *progname);
+int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip);
+void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip);
+
 int main(int argc, char **argv)
 {
 	int                     port = 0;
 	char                   *servip = NULL;
-	int                     confd;
+	int                     sockfd;
 	int                     rv = -1;
 	struct sockaddr_in      servaddr, *addr;
 	char                    buf[1024];
@@ -107,35 +110,108 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	rv = setup_socket(&sockfd, &servaddr, servip);
+	if (rv < 0)
+	{
+		goto cleanup;
+	}
+
+	//每一定时间上传数据
+	for( ; ;)
+	{
+		//测试数据到服务器端
+		rv = gettemp(&temp);
+		memset(buf, 0, sizeof(buf));
+		time(&rawtime);
+		snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
+		if (write(sockfd, buf, strlen(buf)) < 0)
+		{
+			printf("write to server failure: %s\n", strerror(errno));
+		    handle_disconnection(&sockfd, &servaddr, servip);
+			continue;
+		}
+		
+		//测试接受服务器端数据
+		memset(buf, 0, sizeof(buf));
+		rv = read(sockfd, buf, sizeof(buf));
+		if (rv <= 0)
+		{
+			printf("read from server failure or disconnect: %s\n", strerror(errno));
+			handle_disconnection(&sockfd, &servaddr, servip);
+			continue;
+		}
+
+		printf("read %d from server: %s\n", rv, buf);
+		
+		sleep(timeout-2);
+	}
+
+cleanup:
+	close(sockfd);
+		return 0;
+}
+
+int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip)
+{
+
 	//客户端SOCKET连接
-	if ( (confd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+	if ( (*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{
 		printf("creat socket failure: %s\n", strerror(errno));
 		return -1;
 	}
 
 	//服务器端数据更新
-	memset(&servaddr, 0, sizeof(servaddr));
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(port);
-	if (inet_pton(AF_INET, servip, &servaddr.sin_addr) != 1)
+	memset(servaddr, 0, sizeof(*servaddr));
+	servaddr->sin_family = AF_INET;
+	servaddr->sin_port = htons(port);
+	if (inet_pton(AF_INET, servip, *servaddr->sin_addr) != 1)
 	{
 		printf("add servaddr ip failure\n");
 		return -2;
 	}
 
 	//conncet连接
-	if (connect(confd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+	if (connect(*sockfd, (struct sockaddr *)*servaddr, sizeof(*servaddr)) < 0)
 	{
 		printf("connect server failure: %s\n", strerror(errno));
 		return -3;
 	}
 
+	return 1;
+}
+
+void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip)
+{
+	int             delay;
+	int             i;
+	int             max = 5;
+
+	close(*sockfd);
+	*sockfd = -1;
+
+	i = 0;
+	while (1)
+	{
+		i = i < max ? i : max;
+		delay = 1 * pow(2, i);
+		printf("attempting to reconnect in %d second...\n", delay);
+		sleep(delay);
+
+		*sockfd = setup_socket(sockfd, servaddr, servip);
+		if (*socket != -1)
+		{
+			printf("Reconnect to server!\n");
+			return ;
+		}
+		i++;
+	}
+}
 	//每一定时间上传数据
 	for( ; ;)
 	{
 
-	//测试传输数据到服务器端
+	//测试数据到服务器端
 	rv = gettemp(&temp);
 	memset(buf, 0, sizeof(buf));
 	time(&rawtime);
@@ -143,25 +219,23 @@ int main(int argc, char **argv)
 	if (write(confd, buf, strlen(buf)) < 0)
 	{
 		printf("write to server failure: %s\n", strerror(errno));
-		goto cleanup;
+		handle_disconnection(&sockfd, &servaddr, *servip);
+		continue;
 	}
 
 	//测试接受服务器端数据
 	memset(buf, 0, sizeof(buf));
 	rv = read(confd, buf, sizeof(buf));
-	if (rv < 0)
+	if (rv <= 0)
 	{
-		printf("read from server failure: %s\n", strerror(errno));
-		goto cleanup;
+		printf("read from server failure or disconnect: %s\n", strerror(errno));
+		handle_disconnection(&sockfd, &servaddr, *servip);
+		continue;
 	}
-	else if(rv == 0)
-	{
-		printf("get disconnected\n");
-		goto cleanup;
-	}
+	
 	printf("read %d from server: %s\n", rv, buf);
 
-	sleep(timeout-1);
+	sleep(timeout-2);
 	}
 cleanup:
 	close(confd);
