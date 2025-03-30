@@ -89,6 +89,8 @@ int main(int argc, char **argv)
 			goto cleanup;
 		}
 
+		printf("read  %d from client: %s\n", rv, buf);
+
 		for (i=0;i<rv;i++)
 		{
 			buf[i] = toupper(buf[i]);
