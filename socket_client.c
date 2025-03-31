@@ -28,13 +28,18 @@
 
 #include "ds18b20.h"
 
-#define MSG_STR "connect success"
+int init_local_db(char *path);
+int cache_data_local(char *path, char *data);
+int delect_data_local(char *path);
 
 void print_usage(char *progname);
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 
-int g_error = 0;
+int                        g_error = 0;
+int                        g_sqlite = 0;
+float                      g_temp;
+time_t                     rawtime;
 
 void sig_sigpipe(int signum)
 {
@@ -55,9 +60,10 @@ int main(int argc, char **argv)
 	const char             *hostname;
 	struct addrinfo         hints, *res, *p;
 	int                     status = 1;
-	float                   temp;
-	time_t                  rawtime;
+//	float                   temp;
+//	time_t                  rawtime;
 	int						timeout = 5;// 定时时长
+	char                   *path = "client.db";
 
 	struct option           opts[] = {
 		{"ipaddr", required_argument, NULL, 'i'},
@@ -141,6 +147,8 @@ int main(int argc, char **argv)
 		if ( (write(sockfd, buf, strlen(buf)) < 0) || ( g_error == 1))
 		{
 			printf("write to server failure: %s\n", strerror(errno));
+			init_local_db(path);//初始化数据库
+			cache_data_local(path, buf);//此处分多线程！！！！！！！！！！！！！！！！！！！
 		    handle_disconnection(&sockfd, &servaddr, servip, &port);
 			continue;
 		}
@@ -224,6 +232,7 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		{
 			printf("Reconnect to server!\n");
 			g_error = 0;
+			g_sqlite = 1;
 			return ;
 		}
 		i++;
@@ -241,3 +250,116 @@ void print_usage(char *progname)
 
 	return ;
 }
+
+//数据库初始化
+int init_local_db(char *path)
+{
+	sqlite3            *db;
+	char               *err_msg = NULL;
+	int	                rv = -1;
+	char               *sq;
+
+	//创建一个数据库
+	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	{
+		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
+		return -1;
+	}
+
+	//创建一个存放数据的表
+	sq = sqlite3_mprintf("creat table temp(data char)");
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	{
+		printf("error to creat table: %s\n", err_msg);
+		sqlite3_free(err_msg);
+		rv = -2;
+		goto init_clean;
+	}
+
+init_clean:
+	sqlite3_free(sq);
+	sqlite3_close(db);
+
+	if (rv < 0)
+	{
+		return rv;
+	}
+
+	return 0;
+}
+
+//数据存入本地数据库
+int cache_data_local(char *path, char *data)
+{
+	sqlite3             *db;
+	char                *err_msg = NULL;
+	int                  rv = -1;
+	char                *sq;
+
+	//打开数据库
+	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	{
+		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
+		return -1;
+	}
+
+	//向表中写入数据
+	sq = sqlite3_mprintf("insert into temp values(%Q)", data);
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	{
+		printf("error to insert into temp: %s\n", err_msg);
+		sqlite3_free(err_msg);
+		rv = -2;
+		goto cache_clean;
+	}
+
+cache_clean:
+	sqlite3_free(sq);
+	sqlite3_close(db);
+
+	if (rv < 0)
+	{
+		return rv;
+	}
+
+	return 0;
+}
+
+//删除本地数据库数据
+int delect_data_local(char *path)
+{
+	sqlite3              *db;
+	char                 *err_msg;
+	int                   rv = -1;
+	char                 *sq;
+
+	//打开数据库
+	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	{
+		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
+		return -1;
+	}
+
+	//删除表
+	sq = sqlite3_mprintf("drop table if exists temp");
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	{
+		printf("error to delect temp: %s\n", err_msg);
+		sqlite3_free(err_msg);
+		rv = -2;
+		goto delect_clean;
+	}
+
+delect_clean:
+	sqlite3_free(sq);
+	sqlite3_close(db);
+
+	if (rv < 0)
+	{
+		return rv;
+	}
+
+	return 0;
+}
+
+
