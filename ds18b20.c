@@ -27,13 +27,13 @@
 #endif
 #include "ds18b20.h"
 
-int gettemp(float *temp)
+int gettemp(float *temp, char **chip_path)
 {
 	int                  fd;
 	int                  rv;
 	char                *ptr;
 	DIR                 *dirp;
-	char                *chip_path;
+	char                *id_path;
 	char                 path[1024];
 	char                 buf[1024];
 	struct dirent       *readdirp = NULL;
@@ -50,7 +50,7 @@ int gettemp(float *temp)
 	{
 		if ((strstr(readdirp->d_name, "28-")) != NULL)
 		{
-			chip_path = strstr(readdirp->d_name, "28-");
+			id_path = strstr(readdirp->d_name, "28-");
 			goto success;
 		}
 	}
@@ -61,10 +61,11 @@ int gettemp(float *temp)
 
 success:
 	closedir(dirp);
+	*chip_path = strdup(id_path);
 
 	//拼接路径
 	memset(path, 0, sizeof(path));
-	snprintf(path, sizeof(path), "%s%s/w1_slave", PATH, chip_path);
+	snprintf(path, sizeof(path), "%s%s/w1_slave", PATH, *chip_path);
 
 	//打开温度传感器文件
 	if ( (fd = open(path, O_RDONLY)) < 0)
@@ -92,7 +93,7 @@ success:
 
 	*temp=atof(ptr)/1000;
 
-	printf("%f\n", *temp);
+//	printf("%f\n", *temp);
 
 	close(fd);
 
