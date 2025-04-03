@@ -26,6 +26,6 @@
 
 #define PATH "/sys/bus/w1/devices/"
 
-int gettemp(float *temp);
+int gettemp(float *temp, char **chip_path);
 
 #endif
