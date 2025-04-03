@@ -30,12 +30,14 @@
 #include <netinet/tcp.h>
 
 #include "ds18b20.h"
+#include "sqlite.h"
 
-#define CLIPATH "client.db"
+const char 					*CLIPATH = "client.db";
 
-int init_local_db(void);
-int cache_data_local(char *data);
-int delect_data_local(void);
+//int init_local_db(void);
+//int cache_data_local(char *data);
+//int delect_data_local(void);
+int send_callback(void *sockfd, int f_num, char **f_value, char **f_name);
 
 void *temp_worker(void *args);
 void print_usage(char *progname);
@@ -197,19 +199,24 @@ void *temp_worker(void *args)
 	float           temp;
 	char            buf[128];
 	int            *sockfd;
-
+	char           *name = calloc(64, sizeof(char));
 	struct tcp_info info;
-	int len = sizeof(info);
-//	getsockopt(*sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+	int             len = sizeof(info);
 
 	sockfd = (int *)args;
 
 	for ( ; ; )
 	{
-		gettemp(&temp);//获取到温度值
+		gettemp(&temp, &name);//获取到温度值
+		if (name == NULL)
+		{
+			printf("get ID failure\n");
+			return 0;
+		}
+//		printf("%s\n", name);
 		memset(buf, 0, sizeof(buf));                      
 		time(&rawtime);//获取当前时间
-		snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
+		snprintf(buf, sizeof(buf), "%s-%f-%s", name, temp, ctime(&rawtime));
 		printf("ready to send: %s\n", buf);
 
 		getsockopt(*sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
@@ -221,19 +228,19 @@ void *temp_worker(void *args)
 		}
 		else
 		{
-			printf("write to server failure: %s\n", strerror(errno));
+			printf("write to server failure\n");
 			printf("ready to send data to sqlite\n");
-			g_sock_time = 0;
-		}
 
-		if ( ! g_sock_time)
-		{
+			g_sock_time = 0;
+
 			init_local_db();//初始化数据库
 			cache_data_local(buf);//数据存入数据库
 		}
 
 		sleep(g_timeout - 1);
 	}
+
+	free(name);
 }
 
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
@@ -315,6 +322,9 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 	int             delay;
 	int             i;
 	int             max = 5;
+	sqlite3        *db;
+	char           *err_msg;
+	char           *sq;
 
 	close(*sockfd);
 	*sockfd = -1;
@@ -335,14 +345,36 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		{
 			printf("Reconnect to server!\n");
 			g_error = 0;
-			g_sock_time = 1;
+
+			printf("ready to send from server\n");
+			if (sqlite3_open(CLIPATH, &db) != SQLITE_OK)
+			{
+				printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
+				continue;
+			}
+			if (sqlite3_exec(db, "select * from temp", send_callback, sockfd, &err_msg) != SQLITE_OK)
+			{
+				printf("error to read sqlite: %s\n", err_msg);
+				sqlite3_free(err_msg);
+			}
+			sqlite3_close(db);
+
 			printf("delect sqlite later\n");
-			sleep(5);
 			delect_data_local();
+			g_sock_time = 1;
 			return ;
 		}
 		i++;
 	}
+}
+
+int send_callback(void *sockfd, int f_num, char **f_value, char **f_name)
+{
+	char          buf[1024];
+	snprintf(buf, sizeof(buf), "%s\n", f_value[0]);
+
+	write(*(int *)sockfd, buf, strlen(buf));
+	return 0;
 }
 
 void print_usage(char *progname)
@@ -357,6 +389,7 @@ void print_usage(char *progname)
 	return ;
 }
 
+#if 0
 //数据库初始化
 int init_local_db(void)
 {
@@ -467,5 +500,5 @@ delect_clean:
 
 	return 0;
 }
-
+#endif
 
