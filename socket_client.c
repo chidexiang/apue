@@ -25,20 +25,26 @@
 #include <time.h>
 #include <math.h>
 #include <signal.h>
+#include <pthread.h>
+#include <sqlite3.h>
+#include <netinet/tcp.h>
 
 #include "ds18b20.h"
 
-int init_local_db(char *path);
-int cache_data_local(char *path, char *data);
-int delect_data_local(char *path);
+#define CLIPATH "client.db"
 
+int init_local_db(void);
+int cache_data_local(char *data);
+int delect_data_local(void);
+
+void *temp_worker(void *args);
 void print_usage(char *progname);
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 
 int                        g_error = 0;
-int                        g_sqlite = 0;
-float                      g_temp;
+int                        g_sock_time = 1;
+int                        g_timeout = 5;
 time_t                     rawtime;
 
 void sig_sigpipe(int signum)
@@ -62,8 +68,10 @@ int main(int argc, char **argv)
 	int                     status = 1;
 //	float                   temp;
 //	time_t                  rawtime;
-	int						timeout = 5;// 定时时长
-	char                   *path = "client.db";
+//	int						timeout = 5;// 定时时长
+//	char                   *path = "client.db";
+	pthread_attr_t          temp_attr;
+	pthread_t               tid;
 
 	struct option           opts[] = {
 		{"ipaddr", required_argument, NULL, 'i'},
@@ -94,7 +102,7 @@ int main(int argc, char **argv)
 				print_usage(progname);
 				break;
 			case 't':
-				timeout = atoi(optarg);
+				g_timeout = atoi(optarg);
 				break;
 			case 'd':
 				hostname = optarg;
@@ -136,21 +144,32 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	//每一定时间上传数据
-	for( ; ;)
+
+	//初始化温度读取线程
+	if (pthread_attr_init(&temp_attr))
 	{
-		//测试数据到服务器端
-		rv = gettemp(&temp);
-		memset(buf, 0, sizeof(buf));
-		time(&rawtime);
-		snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
-		if ( (write(sockfd, buf, strlen(buf)) < 0) || ( g_error == 1))
+		printf("pthread_attr_init() failure: %s\n", strerror(errno));
+		return -1;
+	}
+
+	//将温度读取线程设置为分离状态
+	if (pthread_attr_setdetachstate(&temp_attr, PTHREAD_CREATE_DETACHED))
+	{
+		printf("pthread_attr_setdetachstate() failure: %s\n", strerror(errno));
+		return -1;
+	}
+
+	//创建温度读取并传入服务器端线程
+	pthread_create(&tid, &temp_attr, temp_worker, &sockfd);
+
+	pthread_attr_destroy(&temp_attr);
+	
+	for ( ; ; )
+	{
+		//时刻判断数据写入过程是否出错，一旦出错进行重连
+		if ( ! g_sock_time)
 		{
-			printf("write to server failure: %s\n", strerror(errno));
-			init_local_db(path);//初始化数据库
-			cache_data_local(path, buf);//此处分多线程！！！！！！！！！！！！！！！！！！！
 		    handle_disconnection(&sockfd, &servaddr, servip, &port);
-			continue;
 		}
 #if 0	
 		//测试接受服务器端数据
@@ -166,7 +185,6 @@ int main(int argc, char **argv)
 		printf("read %d from server: %s\n", rv, buf);
 #endif
 
-		sleep(timeout-2);
 	}
 
 cleanup:
@@ -174,8 +192,57 @@ cleanup:
 		return 0;
 }
 
+void *temp_worker(void *args)
+{
+	float           temp;
+	char            buf[128];
+	int            *sockfd;
+
+	struct tcp_info info;
+	int len = sizeof(info);
+//	getsockopt(*sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+
+	sockfd = (int *)args;
+
+	for ( ; ; )
+	{
+		gettemp(&temp);//获取到温度值
+		memset(buf, 0, sizeof(buf));                      
+		time(&rawtime);//获取当前时间
+		snprintf(buf, sizeof(buf), "ds18b20-%f-%s", temp, ctime(&rawtime));
+		printf("ready to send: %s\n", buf);
+
+		getsockopt(*sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+
+	//	if ( (shutdown(*sockfd, SHUT_RD) < 0) || (write(*sockfd, buf, strlen(buf)) < 0) || ( g_error == 1))
+		if(info.tcpi_state == TCP_ESTABLISHED)
+		{
+			write(*sockfd, buf, strlen(buf));
+		}
+		else
+		{
+			printf("write to server failure: %s\n", strerror(errno));
+			printf("ready to send data to sqlite\n");
+			g_sock_time = 0;
+		}
+
+		if ( ! g_sock_time)
+		{
+			init_local_db();//初始化数据库
+			cache_data_local(buf);//数据存入数据库
+		}
+
+		sleep(g_timeout - 1);
+	}
+}
+
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
 {
+	int             keepalive = 1;
+	int             keepalive_idle = 3;//空闲3s后开始探测
+	int             keepalive_interval = 1;//探测包每隔1秒发送一次
+	int             keepalive_count = 1;//最多发送1个探测包
+
 	*sockfd = -1;
 
 	//客户端SOCKET连接
@@ -184,6 +251,25 @@ int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *p
 		printf("creat socket failure: %s\n", strerror(errno));
 		return -1;
 	}
+
+#if 0
+	if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+	{
+		printf("set keepalive failure\n");
+	}
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
+	{
+		printf("set keepalive_idle failure\n");
+	}
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
+	{
+		printf("set keepalive_interval failure\n");
+	}
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
+	{
+		printf("set keepalive_count failure\n");
+	}
+#endif
 
 	//服务器端数据更新
 	memset(servaddr, 0, sizeof(*servaddr));
@@ -202,6 +288,23 @@ int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *p
 		close(*sockfd);
 		*sockfd = -1;
 		return -3;
+	}
+
+	if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+	{    
+		printf("set keepalive failure\n");
+	}                        
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
+	{    
+		printf("set keepalive_idle failure\n");
+	}                             
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
+	{    
+		printf("set keepalive_interval failure\n");
+	}                                 
+	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
+	{    
+		printf("set keepalive_count failure\n");
 	}
 
 	return 1;
@@ -232,7 +335,10 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		{
 			printf("Reconnect to server!\n");
 			g_error = 0;
-			g_sqlite = 1;
+			g_sock_time = 1;
+			printf("delect sqlite later\n");
+			sleep(5);
+			delect_data_local();
 			return ;
 		}
 		i++;
@@ -252,7 +358,7 @@ void print_usage(char *progname)
 }
 
 //数据库初始化
-int init_local_db(char *path)
+int init_local_db(void)
 {
 	sqlite3            *db;
 	char               *err_msg = NULL;
@@ -260,17 +366,17 @@ int init_local_db(char *path)
 	char               *sq;
 
 	//创建一个数据库
-	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
 	{
 		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
 		return -1;
 	}
 
 	//创建一个存放数据的表
-	sq = sqlite3_mprintf("creat table temp(data char)");
-	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	sq = sqlite3_mprintf("create table  if not exists temp(data char)");
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		printf("error to creat table: %s\n", err_msg);
+		printf("error to create table: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto init_clean;
@@ -289,7 +395,7 @@ init_clean:
 }
 
 //数据存入本地数据库
-int cache_data_local(char *path, char *data)
+int cache_data_local(char *data)
 {
 	sqlite3             *db;
 	char                *err_msg = NULL;
@@ -297,7 +403,7 @@ int cache_data_local(char *path, char *data)
 	char                *sq;
 
 	//打开数据库
-	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
 	{
 		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
 		return -1;
@@ -305,7 +411,7 @@ int cache_data_local(char *path, char *data)
 
 	//向表中写入数据
 	sq = sqlite3_mprintf("insert into temp values(%Q)", data);
-	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
 		printf("error to insert into temp: %s\n", err_msg);
 		sqlite3_free(err_msg);
@@ -326,7 +432,7 @@ cache_clean:
 }
 
 //删除本地数据库数据
-int delect_data_local(char *path)
+int delect_data_local(void)
 {
 	sqlite3              *db;
 	char                 *err_msg;
@@ -334,7 +440,7 @@ int delect_data_local(char *path)
 	char                 *sq;
 
 	//打开数据库
-	if ( (rv = sqlite3_open(path, &db)) != SQLITE_OK)
+	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
 	{
 		printf("error to open sqlite: %s\n", sqlite3_errmsg(db));
 		return -1;
@@ -342,7 +448,7 @@ int delect_data_local(char *path)
 
 	//删除表
 	sq = sqlite3_mprintf("drop table if exists temp");
-	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, err_msg)) != SQLITE_OK)
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
 		printf("error to delect temp: %s\n", err_msg);
 		sqlite3_free(err_msg);
