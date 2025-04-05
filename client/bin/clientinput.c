@@ -23,7 +23,7 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 	struct sockaddr_in     *addr;
 	struct option           opts[] = 
 	{
-	    {"ipaddr", required_argument, NULL, 'i'},
+        {"ipaddr", required_argument, NULL, 'i'},
 		{"port", required_argument, NULL, 'p'},
 		{"dmname", required_argument, NULL, 'd'},
 		{"help", no_argument, NULL, 'h'},
