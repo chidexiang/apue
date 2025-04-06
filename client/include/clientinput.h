@@ -32,7 +32,7 @@
 #include <sqlite3.h>
 #include <netinet/tcp.h>
 
-int      g_timeout = 5;
+extern int      g_timeout;
 
 void client_input(int argc, char **argv, char **servip_t, int *port, char *progname);
 void print_usage(char *progname);
