@@ -3,16 +3,24 @@ NAME ?= socket_client
 
 all:
 	@make -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
-	@make run
+	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -ldl -lpthread
+#	@make run
+
+arm-linux-gnueabihf-gcc:
+	@make arm-linux-gnueabihf-gcc -C bin
+	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -ldl -lm -lpthread
+
+arm-linux-gnueabihf-gcc-static:
+	@make arm-linux-gnueabihf-gcc-static -C bin
+	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -ldl -lm -lpthread
 
 static:
 	@make static -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
-	@make run
+	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -ldl -lpthread
+#	@make run
 
 run:
-	export LD_LIBRARY_PATH=$$(pwd)/libs:$$LD_LIBRARY_PATH && \
+	@export LD_LIBRARY_PATH=$$(pwd)/libs:$$LD_LIBRARY_PATH && \
 	./${NAME} -i 127.0.0.1 -p 11008 -t 2
 
 clean:
