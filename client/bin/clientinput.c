@@ -14,6 +14,8 @@
 #include "clientinput.h"
 #include "log.h"
 
+int g_timeout = 5;
+
 void client_input(int argc, char **argv, char **servip_t, int *port, char *progname)
 {
 	const char             *hostname;
