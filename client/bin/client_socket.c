@@ -15,6 +15,8 @@
 #include "log.h"
 #include "sqlite.h"
 
+int g_sock_time = 1;
+
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
 {
 	int             keepalive = 1;
