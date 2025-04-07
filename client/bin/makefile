@@ -27,7 +27,7 @@ static: clean
 
 clean:
 	@make clear
-	@rm -f ../libs/*
+	@rm -f ../libs/libclient.*
 
 clear:
 	@rm -f *.o

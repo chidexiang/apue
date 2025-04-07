@@ -3,20 +3,20 @@ NAME ?= socket_client
 
 all:
 	@make -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -ldl -lpthread
+	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
 #	@make run
 
 arm-linux-gnueabihf-gcc:
 	@make arm-linux-gnueabihf-gcc -C bin
-	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -ldl -lm -lpthread
+	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lsqlite3 -lm -lpthread
 
 arm-linux-gnueabihf-gcc-static:
 	@make arm-linux-gnueabihf-gcc-static -C bin
-	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -ldl -lm -lpthread
+	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lsqlite3 -lm -lpthread
 
 static:
 	@make static -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -ldl -lpthread
+	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
 #	@make run
 
 run:
@@ -29,6 +29,9 @@ clean:
 delect_txt:
 	@rm -f client.txt
 
+delect_db:
+	@rm -f client.db
+
 delect_lib:
 	@rm -f ./libs/libclient.*
 
@@ -36,3 +39,4 @@ cleanall:
 	@make clean
 	@make delect_txt
 	@make delect_lib
+	@make delect_db
