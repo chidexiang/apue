@@ -72,7 +72,7 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 				{
 					addr = (struct sockaddr_in *)p->ai_addr;
 					servip = inet_ntoa(addr->sin_addr);
-					log_error("IP address: %s", inet_ntoa(addr->sin_addr));
+					log_info("IP address: %s", inet_ntoa(addr->sin_addr));
 				}
 
 				break;
