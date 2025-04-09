@@ -1,42 +1,53 @@
 
-NAME ?= socket_client
+NAME     ?= socket_client
+CC       ?= gcc
+ICLPATH   = ./include/
+ICLFLAG   = -I ${ICLPATH}
+LIBPATH   = ./libs/
+LIBFLAG   = -L ${LIBPATH} -lclient -lm -lsqlite3 -lpthread
+BINPATH   = ./bin/
+
+#run:export LD_LIBRARY_PATH=`pwd`/../libs:$LD_LIBRARY_PATH
 
 all:
-	@make -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
-#	@make run
+	@make -C src
+	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
 arm-linux-gnueabihf-gcc:
-	@make arm-linux-gnueabihf-gcc -C bin
-	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lsqlite3 -lm -lpthread
+	@make arm-linux-gnueabihf-gcc -C src
+	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
 arm-linux-gnueabihf-gcc-static:
-	@make arm-linux-gnueabihf-gcc-static -C bin
-	@arm-linux-gnueabihf-gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lsqlite3 -lm -lpthread
+	@make arm-linux-gnueabihf-gcc-static -C src
+	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
 static:
-	@make static -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lclient -lm -lsqlite3 -lpthread
-#	@make run
+	@make static -C src
+	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
-run:
-	@export LD_LIBRARY_PATH=$$(pwd)/libs:$$LD_LIBRARY_PATH && \
-	./${NAME} -i 127.0.0.1 -p 11008 -t 2
+install:
+	@mkdir -p ${BINPATH}
+	@mv ${NAME} ${BINPATH}
+	@cp test_clients.sh ${BINPATH}
 
 clean:
-	@rm -f ${NAME}
+	@rm -f ${BINPATH}${NAME}
 
-delect_txt:
-	@rm -f client.txt
+delect_include:
+	@rm -rf ${ICLPATH}
 
-delect_db:
-	@rm -f client.db
+delect_bin:
+	@rm -rf ${BINPATH}
 
 delect_lib:
 	@rm -f ./libs/libclient.*
 
 cleanall:
 	@make clean
-	@make delect_txt
+	@make delect_bin
 	@make delect_lib
-	@make delect_db
+	@make delect_include
