@@ -24,8 +24,8 @@
 
 ### 使用说明：
 ##### 1.客户端与服务器端Makefile文件基本功能相同，make 默认以本系统动态库形式编译代码，make static 是以本系统静态库形式编译代码，make arm-linux-gnueabihf-gcc 是以ARM32位Linux系统交叉编译动态库形式代码， make arm-linux-gnueabihf-gcc-static 是以ARM32位Linux系统交叉编译静态库形式代码
-##### 2.make 编译后可以通过 make run 执行代码，客户端默认以127.0.0.1：11008，定时采样时间2秒运行，服务器端默认以所有IP接受，11008端口运行，可自行更改makefile文件或以./方式自行运行，若选择./自行运行需提前将./libs路径加入LD_LIBRARY_PATH下。
-##### 3.客户端和服务器端默认日志文件产生于各自主目录下，默认命名为client.txt(服务器端同理)，如需更改需更改主目录下socket_client.c文件(服务器端同理)
-##### 4.客户端和服务器端默认数据库产生于各自主目录下，默认命名为client.db(服务器端同理)，表名均为 temp ,如需更改数据库名需更改主目录下socket_client.c文件(服务器端同理)
+##### 2.make 编译后将可执行文件放入bin目录下，运行需提前将`pwd`/../libs路径加入LD_LIBRARY_PATH下。
+##### 3.客户端和服务器端默认日志文件产生于可执行文件所在目录(bin目录)下，默认命名为client.txt(服务器端同理)，如需更改需更改主目录下socket_client.c文件(服务器端同理)
+##### 4.客户端和服务器端默认数据库产生于可执行文件所在目录(bin目录)下，默认命名为client.db(服务器端同理)，表名均为 temp ,如需更改数据库名需更改主目录下socket_client.c文件(服务器端同理)
 
 
