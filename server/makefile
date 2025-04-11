@@ -1,46 +1,50 @@
 
-
-
-NAME ?= socket_server
+NAME     ?= socket_server
+CC       ?= gcc 
+ICLPATH   = ./include/
+ICLFLAG   = -I ${ICLPATH}
+LIBPATH   = ./libs/
+LIBFLAG   = -L ${LIBPATH} -lserver -lsqlite3 -lpthread
+BINPATH   = ./bin/
 
 all:
-	@make -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lserver -lsqlite3 -lpthread
-#	@make run
+	@make -C src
+	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}	            
+	@make install
 
 arm-linux-gnueabihf-gcc:
-	@make arm-linux-gnueabihf-gcc -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lserver -lsqlite3 -lpthread
-#	@make run
+	@make arm-linux-gnueabihf-gcc -C src
+	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
 arm-linux-gnueabihf-gcc-static:
-	@make arm-linux-gnueabihf-gcc-static -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lserver -lsqlite3 -lpthread
-#	@make run
+	@make arm-linux-gnueabihf-gcc-static -C src
+	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
 static:
-	@make static -C bin
-	@gcc ${NAME}.c -I ./include -o ${NAME} -L ./libs -lserver -lsqlite3 -lpthread
-#	@make run
+	@make static -C src
+	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@make install
 
-run:
-	@export LD_LIBRARY_PATH=$$(pwd)/libs:$$LD_LIBRARY_PATH && \
-	./${NAME} -p 11008
+install:
+	@mkdir -p ${BINPATH}
+	@mv ${NAME} ${BINPATH}
 
 clean:
-	@rm -f ${NAME}
+	@rm -f ${BINPATH}${NAME}
 
-delect_txt:
-	@rm -f server.txt
+delect_include:
+	@rm -rf ${ICLPATH}
 
-delect_db:
-	@rm -f server.db
+delect_bin:
+	@rm -rf ${BINPATH}
 
 delect_lib:
 	@rm -f ./libs/libserver.*
-		         
+
 cleanall:
 	@make clean
-	@make delect_txt
+	@make delect_bin
 	@make delect_lib
-	@make delect_db
+	@make delect_include
