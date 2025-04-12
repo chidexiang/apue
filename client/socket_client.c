@@ -62,6 +62,8 @@ int main(int argc, char **argv)
 	pthread_attr_t          temp_attr;
 	pthread_t               tid;
 	FILE                   *fp;
+	struct tcp_info         info;
+	int                     len = sizeof(info);
 
 	//捕捉ctrl+c信号
 	signal(SIGINT, sig_sigint);
@@ -111,10 +113,30 @@ int main(int argc, char **argv)
 	
 	for ( ; ; )
 	{
-		//时刻判断数据写入过程是否出错，一旦出错进行重连
-		if ( ! g_sock_time)
+		//检查连接情况
+		getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+		if(info.tcpi_state == TCP_ESTABLISHED)
 		{
+			g_sock_time = 1;
+		}
+		else
+		{
+			g_sock_time = 0;
+		}
+
+		//时刻判断数据写入过程是否出错，一旦出错进行重连
+		if ( ! g_sock_time)	
+		{
+			//自动重连函数，重连成功后退出
 		    handle_disconnection(&sockfd, &servaddr, servip, &port);
+			
+			//将数据库中数据传到服务器端
+			log_info("ready to send from server");
+			send_data_local(&sockfd);
+			//删除数据库
+			log_info("delect sqlite later");
+			delect_data_local();
+			g_sock_time = 1;
 		}
 
 	}
@@ -132,8 +154,6 @@ void *temp_worker(void *args)
 	int            *sockfd;
 	char           *name = calloc(64, sizeof(char));
 	char           *time_str;
-	struct tcp_info info;
-	int             len = sizeof(info);
 
 	sockfd = (int *)args;
 
@@ -152,9 +172,7 @@ void *temp_worker(void *args)
 		snprintf(buf, sizeof(buf), "%s-%f-%s", name, temp, time_str);
 		log_info("ready to send [%d] data: %s", strlen(buf), buf);
 
-		getsockopt(*sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
-
-		if(info.tcpi_state == TCP_ESTABLISHED)
+		if (g_sock_time)
 		{
 			write(*sockfd, buf, strlen(buf));
 		}
@@ -162,8 +180,6 @@ void *temp_worker(void *args)
 		{
 			log_error("write to server failure");
 			log_info("ready to send data to sqlite");
-
-			g_sock_time = 0;
 
 			init_local_db();//初始化数据库
 			cache_data_local(buf);//数据存入数据库
