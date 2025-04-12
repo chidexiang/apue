@@ -96,11 +96,6 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		if (*sockfd != -1)
 		{
 			log_info("Reconnect to server!");
-			log_info("ready to send from server");
-			send_data_local(sockfd);
-			log_info("delect sqlite later");
-			delect_data_local();
-			g_sock_time = 1;
 			return ;
 		}
 		i++;
