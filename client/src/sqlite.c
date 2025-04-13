@@ -164,3 +164,44 @@ int send_callback(void *sockfd, int f_num, char **f_value, char **f_name)
 	return 0;
 }
 
+//查询是否还有数据
+int find_data_local(void)
+{
+	sqlite3_stmt   *stmt;
+	const char     *sql = "select * from temp;";
+	sqlite3        *db;
+	char           *err_msg;
+	int             rv = -1;
+	 
+	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	{
+		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
+		return -1;
+	}
+		
+	rv = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
+	if (rv == SQLITE_OK) 
+	{
+		if (sqlite3_step(stmt) == SQLITE_ROW)
+		{
+			rv = 1;
+			goto find_clean;
+		}
+		else
+		{
+			rv = 0;
+			goto find_clean;
+		}
+	}
+	else
+	{
+		rv = -2;
+		log_error("run sqlite3_prepare_v2 error/n");
+		goto find_clean;
+	}
+find_clean:
+	sqlite3_finalize(stmt);
+	sqlite3_close(db);
+
+    return rv;
+}

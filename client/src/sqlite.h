@@ -27,5 +27,6 @@ int cache_data_local(char *data);
 int delect_data_local(void);
 int send_data_local(int *sockfd);
 int send_callback(void *sockfd, int f_num, char **f_value, char **f_name);
+int find_data_local(void);
 
 #endif

@@ -144,7 +144,7 @@ int main(int argc, char **argv)
 cleanup:
 	close(sockfd);
 	free(servip);
-		return 0;
+	return 0;
 }
 
 void *temp_worker(void *args)
@@ -174,6 +174,7 @@ void *temp_worker(void *args)
 
 		if (g_sock_time)
 		{
+
 			write(*sockfd, buf, strlen(buf));
 		}
 		else
