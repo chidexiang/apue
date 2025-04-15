@@ -46,11 +46,12 @@ int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *p
 	//conncet连接
 	if (connect(*sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
 	{
-		log_error("connect server failure: %s", strerror(errno));
+		//log_error("connect server failure: %s", strerror(errno));
 		close(*sockfd);
 		*sockfd = -1;
 		return -3;
 	}
+	log_debug("connect %d success\n", *sockfd);
 
 	if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
 	{    
@@ -101,3 +102,18 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		i++;
 	}
 }
+
+int is_empty(char arr[], int size) 
+{
+	int           i = 0;
+
+	for (i = 0;i < size; i++) 
+	{
+		if (arr[i] != 0) 
+		{ // 假设默认值为 0
+			return 0;   // 发现非零元素，数组非空
+		}
+	}
+		    return 1; // 所有元素均为 0，视为“空”
+}
+

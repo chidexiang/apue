@@ -49,6 +49,8 @@ int main(int argc, char **argv)
 	int                     fds_array[1024];
 	fd_set                  rdset;
 	FILE                    *fp;
+
+	//创建服务器端日志
 	fp = fopen("server.txt", "a+");
 	if(fp == NULL)
 	{
