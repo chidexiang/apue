@@ -35,5 +35,6 @@ extern int      g_sock_time;
 
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
+int is_empty(char arr[], int size);
 
 #endif

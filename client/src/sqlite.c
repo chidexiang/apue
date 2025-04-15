@@ -125,6 +125,44 @@ delect_clean:
 	return 0;
 }
 
+//删除本地数据库第一条数据
+int delect_1st_data_local(void)
+{
+	sqlite3              *db;
+	char                 *err_msg;
+	int                   rv = -1;
+	char                 *sq;
+
+	//打开数据库
+	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	{
+		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
+		return -1;
+	}
+						
+	//删除表
+	sq = sqlite3_mprintf("delete from temp where rowid = (select rowid from temp limit 1)");
+	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
+	{
+		log_error("error to delect first temp: %s", err_msg);
+		sqlite3_free(err_msg);
+		rv = -2;
+		goto delect_clean;
+	}
+						
+delect_clean:
+	sqlite3_free(sq);
+	sqlite3_close(db);
+						
+	if (rv < 0)
+	{
+		return rv;
+	}
+						
+	return 0;
+}
+
+//读取数据库的全部数据
 int send_data_local(int *sockfd)
 {
 	sqlite3        *db;
@@ -164,24 +202,57 @@ int send_callback(void *sockfd, int f_num, char **f_value, char **f_name)
 	return 0;
 }
 
+//读取数据库的第一条数据
+int send_1st_data_local(int *sockfd)
+{
+	sqlite3        *db;
+	char           *err_msg;
+	int             rv = -1;
+		
+	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	{
+		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
+		return -1;
+	}
+	if ((rv = sqlite3_exec(db, "select * from temp limit 1", send_callback, sockfd, &err_msg)) != SQLITE_OK)
+	{
+		log_error("error to read sqlite: %s", err_msg);
+		sqlite3_free(err_msg);
+		rv = -2;
+		goto send_clean;
+	}
+
+send_clean:
+	sqlite3_close(db);
+
+	if (rv < 0)
+	{
+		return rv;
+	}
+
+	return 0;
+}
+
 //查询是否还有数据
 int find_data_local(void)
 {
 	sqlite3_stmt   *stmt;
-	const char     *sql = "select * from temp;";
+	const char     *sql = "select * from temp limit 1;";
 	sqlite3        *db;
-	char           *err_msg;
 	int             rv = -1;
-	 
+	
+	//打开数据库
 	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
 	{
 		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
 		return -1;
 	}
 		
+	//准备数据库执行代码
 	rv = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rv == SQLITE_OK) 
 	{
+		//查询temp中是否有数据
 		if (sqlite3_step(stmt) == SQLITE_ROW)
 		{
 			rv = 1;
@@ -196,7 +267,7 @@ int find_data_local(void)
 	else
 	{
 		rv = -2;
-		log_error("run sqlite3_prepare_v2 error/n");
+		log_error("Failed to prepare statement: %s", sqlite3_errmsg(db));
 		goto find_clean;
 	}
 find_clean:
