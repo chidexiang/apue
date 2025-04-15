@@ -15,7 +15,6 @@
 #include "log.h"
 #include "sqlite.h"
 
-int g_sock_time = 1;
 
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
 {
@@ -46,12 +45,11 @@ int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *p
 	//conncet连接
 	if (connect(*sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
 	{
-		//log_error("connect server failure: %s", strerror(errno));
 		close(*sockfd);
 		*sockfd = -1;
 		return -3;
 	}
-	log_debug("connect %d success\n", *sockfd);
+	log_debug("connect [%d] success", *sockfd);
 
 	if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
 	{    

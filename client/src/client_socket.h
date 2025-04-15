@@ -31,7 +31,6 @@
 #include <sqlite3.h>
 #include <netinet/tcp.h>
 
-extern int      g_sock_time;
 
 int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
