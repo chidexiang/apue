@@ -35,17 +35,15 @@
 #include "client_socket.h"
 #include "clientinput.h"
 
-const char 					*CLIPATH = "client.db";
+#define CLIPATH "client.db"
 
-void *temp_worker(void *args);
+static int   sigint_flag = 0;
 
 void sig_sigint(int signum)
 {
 	if (SIGINT == signum)
 	{
-		log_info("delect sqlite");
-		delect_data_local();
-		exit(0);
+		sigint_flag = 1;
 	}
 }
 
@@ -65,6 +63,7 @@ int main(int argc, char **argv)
 	char                    buf[128];
 	char                   *name = calloc(64, sizeof(char));
 	char                   *time_str;
+	sqlite3                *db = NULL;
 
 	//捕捉ctrl+c信号
 	signal(SIGINT, sig_sigint);
@@ -90,64 +89,11 @@ int main(int argc, char **argv)
 	rv = setup_socket(&sockfd, &servaddr, servip, &port);
 	if (rv < 0)
 	{
-		log_error("setup_socket failure!\n");
+		log_error("setup_socket failure!");
 		goto cleanup;
 	}
 
-#if 0
-	//初始化温度读取线程
-	if (pthread_attr_init(&temp_attr))
-	{
-		log_error("pthread_attr_init() failure: %s", strerror(errno));
-		return -1;
-	}
-
-	//将温度读取线程设置为分离状态
-	if (pthread_attr_setdetachstate(&temp_attr, PTHREAD_CREATE_DETACHED))
-	{
-		log_error("pthread_attr_setdetachstate() failure: %s", strerror(errno));
-		return -1;
-	}
-
-	//创建温度读取并传入服务器端线程
-	pthread_create(&tid, &temp_attr, temp_worker, &sockfd);
-
-	pthread_attr_destroy(&temp_attr);
-	
-#endif
-#if 0
-	for ( ; ; )
-	{
-		//检查连接情况
-		getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
-		if(info.tcpi_state == TCP_ESTABLISHED)
-		{
-			g_sock_time = 1;
-		}
-		else
-		{
-			g_sock_time = 0;
-		}
-
-		//时刻判断数据写入过程是否出错，一旦出错进行重连
-		if ( ! g_sock_time)	
-		{
-			//自动重连函数，重连成功后退出
-		    handle_disconnection(&sockfd, &servaddr, servip, &port);
-			
-			//将数据库中数据传到服务器端
-			log_info("ready to send from server");
-			send_data_local(&sockfd);
-			//删除数据库
-			log_info("delect sqlite later");
-			delect_data_local();
-			g_sock_time = 1;
-		}
-
-	}
-
-#endif
-	init_local_db();//初始化数据库
+	init_local_db(CLIPATH, &db);//初始化数据库
 
 	for ( ; ; )
 	{
@@ -185,7 +131,7 @@ int main(int argc, char **argv)
 				log_error("write to server failure");
 				log_info("ready to send data to sqlite");
 				 
-				cache_data_local(buf);//数据存入数据库
+				cache_data_local(buf, db);//数据存入数据库
 			}
 			continue;
 		}
@@ -194,65 +140,33 @@ int main(int argc, char **argv)
 		//如果采样发送到服务器
 		if (is_empty(buf, sizeof(buf)) == 0)
 		{
-			log_info("ready to send server\n");
+			log_info("ready to send server");
 			write(sockfd, buf, strlen(buf));
 		}
 
 		//检查数据数据库中是否有数据
-		if ((rv = find_data_local()) == 1)
+		if ((rv = find_data_local(db)) == 1)
 		{
-			send_1st_data_local(&sockfd);//读取数据库的第一条数据并发送
-			delect_1st_data_local();//删除temp表的第一条数据
+			send_1st_data_local(buf, db);//读取数据库的第一条数据
+			write(sockfd, buf, strlen(buf));
+			delect_1st_data_local(db);//删除temp表的第一条数据
+		}
+
+		if (sigint_flag)
+		{
+			break;
 		}
 	}
 
 cleanup:
 	close(sockfd);
 	free(servip);
+	if (db != NULL)
+	{
+		log_info("delect sqlite");
+		delect_data_local(db);
+		close_local_db(&db);
+	}
 	return 0;
 }
 
-#if 0
-void *temp_worker(void *args)
-{
-	float           temp;
-	char            buf[128];
-	int            *sockfd;
-	char           *name = calloc(64, sizeof(char));
-	char           *time_str;
-
-	sockfd = (int *)args;
-
-	for ( ; ; )
-	{
-		gettemp(&temp, &name);//获取到温度值
-		if (name == NULL)
-		{
-			log_error("get ID failure");
-			return 0;
-		}
-		memset(buf, 0, sizeof(buf));                      
-		time(&rawtime);//获取当前时间
-		time_str = ctime(&rawtime);
-		time_str[strcspn(time_str, "\n")] = '\0';//将获取到的时间后面的换行符删除
-		snprintf(buf, sizeof(buf), "%s-%f-%s", name, temp, time_str);
-		log_info("ready to send [%d] data: %s", strlen(buf), buf);
-
-		if (g_sock_time)
-		{
-
-			write(*sockfd, buf, strlen(buf));
-		}
-		else
-		{
-			log_error("write to server failure");
-			log_info("ready to send data to sqlite");
-
-			init_local_db();//初始化数据库
-			cache_data_local(buf);//数据存入数据库
-		}
-
-		sleep(g_timeout - 1);
-	}
-}
-#endif

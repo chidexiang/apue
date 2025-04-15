@@ -15,25 +15,24 @@
 #include "log.h"
 
 //数据库初始化
-int init_local_db(void)
+int init_local_db(char *file, sqlite3 **db)
 {
-	sqlite3            *db;
 	char               *err_msg = NULL;
 	int                 rv = -1; 
 	char               *sq;
 
 	//创建一个数据库
-	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	if ( (rv = sqlite3_open(file, db)) != SQLITE_OK)
 	{   
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
+		log_debug("error to open sqlite: %s", sqlite3_errmsg(*db));
 		return -1; 
 	}   
 						
 	//创建一个存放数据的表
-	sq = sqlite3_mprintf("create table  if not exists temp(data char)");
-	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
+	sq = sqlite3_mprintf("create table if not exists temp(data char)");
+	if ( (rv = sqlite3_exec(*db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{   
-		log_error("error to create table: %s", err_msg);
+		log_debug("error to create table: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2; 
 		goto init_clean;
@@ -41,7 +40,6 @@ int init_local_db(void)
 						
 init_clean:
 	sqlite3_free(sq);
-	sqlite3_close(db);
 						
 	if (rv < 0)
 	{   
@@ -52,25 +50,17 @@ init_clean:
 }
 
 //数据存入本地数据库
-int cache_data_local(char *data)
+int cache_data_local(char *data, sqlite3 *db)
 {
-	sqlite3             *db;
 	char                *err_msg = NULL;
 	int                  rv = -1;
 	char                *sq;
 
-	//打开数据库
-	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
-	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-						
 	//向表中写入数据
 	sq = sqlite3_mprintf("insert into temp values(%Q)", data);
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_error("error to insert into temp: %s", err_msg);
+		log_debug("error to insert into temp: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto cache_clean;
@@ -78,7 +68,6 @@ int cache_data_local(char *data)
 						
 cache_clean:
 	sqlite3_free(sq);
-	sqlite3_close(db);
 						
 	if (rv < 0)
 	{
@@ -89,25 +78,17 @@ cache_clean:
 }
 
 //删除本地数据库数据
-int delect_data_local(void)
+int delect_data_local(sqlite3 *db)
 {
-	sqlite3              *db;
 	char                 *err_msg;
 	int                   rv = -1;
 	char                 *sq;
 
-	//打开数据库
-	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
-	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-						
 	//删除表
 	sq = sqlite3_mprintf("drop table if exists temp");
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_error("error to delect temp: %s", err_msg);
+		log_debug("error to delect temp: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto delect_clean;
@@ -115,7 +96,6 @@ int delect_data_local(void)
 						
 delect_clean:
 	sqlite3_free(sq);
-	sqlite3_close(db);
 						
 	if (rv < 0)
 	{
@@ -126,25 +106,17 @@ delect_clean:
 }
 
 //删除本地数据库第一条数据
-int delect_1st_data_local(void)
+int delect_1st_data_local(sqlite3 *db)
 {
-	sqlite3              *db;
 	char                 *err_msg;
 	int                   rv = -1;
 	char                 *sq;
 
-	//打开数据库
-	if ( (rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
-	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-						
 	//删除表
 	sq = sqlite3_mprintf("delete from temp where rowid = (select rowid from temp limit 1)");
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_error("error to delect first temp: %s", err_msg);
+		log_debug("error to delect first temp: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto delect_clean;
@@ -152,7 +124,6 @@ int delect_1st_data_local(void)
 						
 delect_clean:
 	sqlite3_free(sq);
-	sqlite3_close(db);
 						
 	if (rv < 0)
 	{
@@ -163,27 +134,20 @@ delect_clean:
 }
 
 //读取数据库的全部数据
-int send_data_local(int *sockfd)
+int send_data_local(char *buf, sqlite3 *db)
 {
-	sqlite3        *db;
 	char           *err_msg;
 	int             rv = -1;
 		
-	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	if ((rv = sqlite3_exec(db, "select * from temp", send_callback, buf, &err_msg)) != SQLITE_OK)
 	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-	if ((rv = sqlite3_exec(db, "select * from temp", send_callback, sockfd, &err_msg)) != SQLITE_OK)
-	{
-		log_error("error to read sqlite: %s", err_msg);
+		log_debug("error to read sqlite: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto send_clean;
 	}
 
 send_clean:
-	sqlite3_close(db);
 
 	if (rv < 0)
 	{
@@ -193,37 +157,33 @@ send_clean:
 	return 0;
 }
 
-int send_callback(void *sockfd, int f_num, char **f_value, char **f_name)
+int send_callback(void *buf, int f_num, char **f_value, char **f_name)
 {
-	char          buf[1024];
-	snprintf(buf, sizeof(buf), "%s", f_value[0]);
+	char          date[512];
 
-	write(*(int *)sockfd, buf, strlen(buf));
+	memset(date, 0, sizeof(date));
+	snprintf(date, sizeof(date), "%s", f_value[0]);
+
+	strncpy((char *)buf, date, strlen(date));
+
 	return 0;
 }
 
 //读取数据库的第一条数据
-int send_1st_data_local(int *sockfd)
+int send_1st_data_local(char *buf, sqlite3 *db)
 {
-	sqlite3        *db;
 	char           *err_msg;
 	int             rv = -1;
 		
-	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
+	if ((rv = sqlite3_exec(db, "select * from temp limit 1", send_callback, buf, &err_msg)) != SQLITE_OK)
 	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-	if ((rv = sqlite3_exec(db, "select * from temp limit 1", send_callback, sockfd, &err_msg)) != SQLITE_OK)
-	{
-		log_error("error to read sqlite: %s", err_msg);
+		log_debug("error to read sqlite: %s", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto send_clean;
 	}
 
 send_clean:
-	sqlite3_close(db);
 
 	if (rv < 0)
 	{
@@ -234,20 +194,12 @@ send_clean:
 }
 
 //查询是否还有数据
-int find_data_local(void)
+int find_data_local(sqlite3 *db)
 {
 	sqlite3_stmt   *stmt;
 	const char     *sql = "select * from temp limit 1;";
-	sqlite3        *db;
 	int             rv = -1;
 	
-	//打开数据库
-	if ((rv = sqlite3_open(CLIPATH, &db)) != SQLITE_OK)
-	{
-		log_error("error to open sqlite: %s", sqlite3_errmsg(db));
-		return -1;
-	}
-		
 	//准备数据库执行代码
 	rv = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
 	if (rv == SQLITE_OK) 
@@ -267,12 +219,18 @@ int find_data_local(void)
 	else
 	{
 		rv = -2;
-		log_error("Failed to prepare statement: %s", sqlite3_errmsg(db));
+		log_debug("Failed to prepare statement: %s", sqlite3_errmsg(db));
 		goto find_clean;
 	}
 find_clean:
 	sqlite3_finalize(stmt);
-	sqlite3_close(db);
 
     return rv;
+}
+
+void close_local_db(sqlite3 **db)
+{
+	sqlite3_close(*db);
+	*db = NULL;
+	return ;
 }
