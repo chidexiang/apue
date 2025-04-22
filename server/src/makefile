@@ -1,9 +1,14 @@
 
 
 LIBNAME  ?= server
-CC        = gcc 
+#CC        = gcc 
 LIBPATH  ?= ../libs/
 ICLPATH  ?= ../include/
+
+BUILD_ARCH=$(shell uname -m)
+ifneq ($(findstring $(BUILD_ARCH), "x86_64" "i386"),)
+	CROSS_COMPILE=arm-linux-gnueabihf-
+endif
 
 all: clean
 	@gcc -shared -fPIC *.c -o lib${LIBNAME}.so
@@ -20,7 +25,7 @@ arm-linux-gnueabihf-gcc-static: clean
 	@make clear
 
 static: clean
-	@gcc -c *.c
+	@${CROSS_COMPILE}gcc -c *.c
 	@ar -rcs lib${LIBNAME}.a *.o
 	@make install
 	@make clear
