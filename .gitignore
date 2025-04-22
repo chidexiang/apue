@@ -1,0 +1,16 @@
+
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.exe
+*.out
+
+bin/
+include/
+
+*.db
+*.txt
+
