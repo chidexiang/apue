@@ -99,6 +99,11 @@ int main(int argc, char **argv)
 
 	for ( ; ; )
 	{
+		if (sigint_flag)
+		{
+			break;
+		}
+
 		//获取当前时间
 		time(&start_time);
 
@@ -152,11 +157,6 @@ int main(int argc, char **argv)
 			send_1st_data_local(buf, db);//读取数据库的第一条数据
 			write(sockfd, buf, strlen(buf));
 			delect_1st_data_local(db);//删除temp表的第一条数据
-		}
-
-		if (sigint_flag)
-		{
-			break;
 		}
 	}
 
