@@ -12,7 +12,6 @@
  ********************************************************************************/
 
 #include "ds18b20.h"
-#include "log.h"
 
 int gettemp(float *temp, char **chip_path)
 {
@@ -28,7 +27,7 @@ int gettemp(float *temp, char **chip_path)
 	//打开到一定能查找到的文件目录
 	if ( (dirp = opendir(PATH)) == NULL)
 	{
-		log_error("open dirp failure: %s", strerror(errno));
+		log_error("open dirp failure: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -42,7 +41,7 @@ int gettemp(float *temp, char **chip_path)
 		}
 	}
 
-		log_error("find '28-' failure: %s", strerror(errno));
+		log_error("find '28-' failure: %s\n", strerror(errno));
 		closedir(dirp);
 		return -2;
 
@@ -57,7 +56,7 @@ success:
 	//打开温度传感器文件
 	if ( (fd = open(path, O_RDONLY)) < 0)
 	{
-		log_error("open file failure: %s", strerror(errno));
+		log_error("open file failure: %s\n", strerror(errno));
 		return -3;
 	}
 
@@ -65,14 +64,14 @@ success:
 	memset(buf, 0, sizeof(buf));
 	if (read(fd, buf, sizeof(buf)) < 0)
 	{
-		log_error(" read faile failure: %s", strerror(errno));
+		log_error(" read faile failure: %s\n", strerror(errno));
 		return -4;
 	}
 
 	//读出温度值
 	if((ptr=strstr(buf, "t=")) == NULL)
 	{
-		log_error("read temp failure: %s", strerror(errno));
+		log_error("read temp failure: %s\n", strerror(errno));
 		return -5;
 	}
 

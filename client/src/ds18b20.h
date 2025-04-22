@@ -24,6 +24,8 @@
 #include <stdlib.h>
 #include <dirent.h>
 
+#include "logger.h"
+
 #define PATH "/sys/bus/w1/devices/"
 
 int gettemp(float *temp, char **chip_path);

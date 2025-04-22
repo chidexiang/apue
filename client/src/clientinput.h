@@ -32,6 +32,8 @@
 #include <sqlite3.h>
 #include <netinet/tcp.h>
 
+#include "logger.h"
+
 void client_input(int argc, char **argv, char **servip_t, int *port, char *progname, int *second);
 void print_usage(char *progname);
 

@@ -12,15 +12,10 @@
  ********************************************************************************/
 
 #include "clientinput.h"
-#include "log.h"
 
 void client_input(int argc, char **argv, char **servip_t, int *port, char *progname, int *second)
 {
-	const char             *hostname;
 	char                   *servip;
-	struct addrinfo         hints, *res, *p;
-	int                     status = 1;
-	struct sockaddr_in     *addr;
 	struct option           opts[] = 
 	{
 		{"ipaddr", required_argument, NULL, 'i'},
@@ -32,14 +27,12 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 	};
     int                     ch;
 
-	*servip_t = malloc(100);
-
 	while ( (ch = getopt_long(argc, argv, "i:p:d:ht:", opts, NULL)) != -1)
 	{
 		switch(ch)
 		{
 			case 'i':
-				servip = strcpy(servip, optarg);
+				servip = optarg;
 				break;
 			case 'p':
 				*port = atoi(optarg);
@@ -51,34 +44,12 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 			case 't':
 				*second = atoi(optarg);
 				break;
-			case 'd':
-				hostname = optarg;
-
-				memset(&hints, 0, sizeof(hints));
-				hints.ai_family = AF_INET; //支持IPV4
-				hints.ai_socktype = SOCK_STREAM; //TCP
-
-				//DNS解析
-				if((status = getaddrinfo(hostname, NULL, &hints, &res)) != 0)
-				{
-					log_error("getaddrinfo error: %s", strerror(errno));
-					exit(0);
-				}
-
-				//遍历结果链表
-				for (p = res; p != NULL; p = p->ai_next)
-				{
-					addr = (struct sockaddr_in *)p->ai_addr;
-					servip = inet_ntoa(addr->sin_addr);
-					log_info("IP address: %s", inet_ntoa(addr->sin_addr));
-				}
-
-				break;
 			default:
 				break;
 		}
 	}
-	*servip_t = strdup(servip);
+
+	*servip_t = servip;
 	
 	if (! servip || ! port)
 	{
@@ -90,12 +61,12 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 
 void print_usage(char *progname)
 {
-	log_info("%s usage: ", progname);
+	log_info("%s usage: \n", progname);
 
-	log_info("-i(--ipaddr): sepcify server IP address");
-	log_info("-p(--port): sepcify server port.");
-	log_info("-h(--help): print this help information.");
-	log_info("-d(--dmname): sepcify server domain name.");
+	log_info("-i(--ipaddr): sepcify server IP address\n");
+	log_info("-p(--port): sepcify server port.\n");
+	log_info("-h(--help): print this help information.\n");
+	log_info("-d(--dmname): sepcify server domain name.\n");
 
 	return ;
 }

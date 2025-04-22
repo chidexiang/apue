@@ -19,8 +19,7 @@
 #include <unistd.h>
 #include <string.h>
 
-//使用这个文件必须在主函数文件中修改CLIPATH：
-//extern const char *CLIPATH;
+#include "logger.h"
 
 int init_local_db(char *file, sqlite3 **db);//数据库初始化并创建temp表
 int cache_data_local(char *data, sqlite3 *db);//数据存入temp表
@@ -29,7 +28,7 @@ int send_data_local(char *buf, sqlite3 *db);//读取数据库中的数据并发�
 int send_callback(void *buf, int f_num, char **f_value, char **f_name);//回调函数
 int find_data_local(sqlite3 *db);//查询数据库中是否还有数据
 int send_1st_data_local(char *buf, sqlite3 *db);//读取数据库的第一条数据并发送
-int delect_1st_data_local(sqlite3 *db);//删除temp表的第一条数据
+int delete_1st_data_local(sqlite3 *db);//删除temp表的第一条数据
 void close_local_db(sqlite3 **db);//关闭数据库
 
 #endif

@@ -12,23 +12,25 @@
  ********************************************************************************/
 
 #include "client_socket.h"
-#include "log.h"
-#include "sqlite.h"
 
-
-int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
+int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
 {
-	int             keepalive = 1;
-	int             keepalive_idle = 3;//空闲3s后开始探测
-	int             keepalive_interval = 1;//探测包每隔1秒发送一次
-	int             keepalive_count = 1;//最多发送1个探测包
+	int                     keepalive = 1;
+	int                     keepalive_idle = 3;//空闲3s后开始探测
+	int                     keepalive_interval = 1;//探测包每隔1秒发送一次
+	int                     keepalive_count = 1;//最多发送1个探测包
+	const char             *hostname;
+	struct addrinfo         hints, *res, *p;
+	struct sockaddr_in     *addr;
+	int                     status = 1;
+	char                    port_str[6];
 
 	*sockfd = -1;
 
 	//客户端SOCKET连接
 	if ( (*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{
-		log_error("creat socket failure: %s", strerror(errno));
+		log_error("creat socket failure: %s\n", strerror(errno));
 		return -1;
 	}
 
@@ -38,34 +40,68 @@ int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *p
 	servaddr->sin_port = htons(*port);
 	if (inet_pton(AF_INET, servip, &servaddr->sin_addr) != 1)//void *
 	{
-		log_error("add servaddr ip failure");
-		return -2;
-	}
+		hostname = servip;
+		snprintf(port_str, sizeof(port_str), "%d", *port);
 
-	//conncet连接
-	if (connect(*sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_family = AF_INET; //支持IPV4
+		hints.ai_socktype = SOCK_STREAM; //TCP
+
+		//DNS解析
+		if((status = getaddrinfo(hostname, port_str, &hints, &res)) != 0)
+		{
+			log_error("getaddrinfo error: %s\n", strerror(errno));
+			exit(0);
+		}
+
+		//遍历结果链表
+		for (p = res; p != NULL; p = p->ai_next)
+		{
+			if (connect(*sockfd, p->ai_addr, p->ai_addrlen) < 0)
+			{
+				close(*sockfd);
+				*sockfd = -1;
+				continue;
+			}
+			else
+			{
+				log_debug("connect [%d] success\n", *sockfd);
+				freeaddrinfo(res); 
+				break;
+			}
+			return -3;
+		}
+	}
+	else
 	{
-		close(*sockfd);
-		*sockfd = -1;
-		return -3;
+		//conncet连接
+		if (connect(*sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
+		{
+			close(*sockfd);
+			*sockfd = -1;
+			return -3;
+		}
+		log_debug("connect [%d] success\n", *sockfd);
 	}
-	log_debug("connect [%d] success", *sockfd);
 
-	if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
-	{    
-		log_error("set keepalive failure");
-	}                        
-	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
-	{    
-		log_error("set keepalive_idle failure");
-	}                             
-	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
-	{    
-		log_error("set keepalive_interval failure");
-	}                                 
-	if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
-	{    
-		log_error("set keepalive_count failure");
+	if (*sockfd)
+	{
+		if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+		{    
+			log_error("set keepalive failure\n");
+		}                        
+		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
+		{    
+			log_error("set keepalive_idle failure\n");
+		}                             
+		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
+		{    
+			log_error("set keepalive_interval failure\n");
+		}                                 
+		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
+		{    
+			log_error("set keepalive_count failure\n");
+		}
 	}
 
 	return 1;
@@ -85,16 +121,16 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 	{
 		i = i < max ? i : max;
 		delay = 1 * pow(2, i);
-		log_info("attempting to reconnect in %d second...", delay);
+		log_info("attempting to reconnect in %d second...\n", delay);
 		sleep(delay);
 
 		setup_socket(sockfd, servaddr, servip, port);
 
-		log_info("sockfd: %d", *sockfd);
+		log_info("sockfd: %d\n", *sockfd);
 
 		if (*sockfd != -1)
 		{
-			log_info("Reconnect to server!");
+			log_info("Reconnect to server!\n");
 			return ;
 		}
 		i++;

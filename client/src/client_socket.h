@@ -31,8 +31,9 @@
 #include <sqlite3.h>
 #include <netinet/tcp.h>
 
+#include "logger.h"
 
-int setup_socket(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
+int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
 int is_empty(char arr[], int size);
 

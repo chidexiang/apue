@@ -12,7 +12,7 @@
  ********************************************************************************/
 
 #include "sqlite.h"
-#include "log.h"
+#include "logger.h"
 
 //数据库初始化
 int init_local_db(char *file, sqlite3 **db)
@@ -24,7 +24,7 @@ int init_local_db(char *file, sqlite3 **db)
 	//创建一个数据库
 	if ( (rv = sqlite3_open(file, db)) != SQLITE_OK)
 	{   
-		log_debug("error to open sqlite: %s", sqlite3_errmsg(*db));
+		log_debug("error to open sqlite: %s\n", sqlite3_errmsg(*db));
 		return -1; 
 	}   
 						
@@ -32,7 +32,7 @@ int init_local_db(char *file, sqlite3 **db)
 	sq = sqlite3_mprintf("create table if not exists temp(data char)");
 	if ( (rv = sqlite3_exec(*db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{   
-		log_debug("error to create table: %s", err_msg);
+		log_debug("error to create table: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2; 
 		goto init_clean;
@@ -60,7 +60,7 @@ int cache_data_local(char *data, sqlite3 *db)
 	sq = sqlite3_mprintf("insert into temp values(%Q)", data);
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_debug("error to insert into temp: %s", err_msg);
+		log_debug("error to insert into temp: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto cache_clean;
@@ -78,7 +78,7 @@ cache_clean:
 }
 
 //删除本地数据库数据
-int delect_data_local(sqlite3 *db)
+int delete_data_local(sqlite3 *db)
 {
 	char                 *err_msg;
 	int                   rv = -1;
@@ -88,7 +88,7 @@ int delect_data_local(sqlite3 *db)
 	sq = sqlite3_mprintf("drop table if exists temp");
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_debug("error to delect temp: %s", err_msg);
+		log_debug("error to delect temp: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto delect_clean;
@@ -116,7 +116,7 @@ int delect_1st_data_local(sqlite3 *db)
 	sq = sqlite3_mprintf("delete from temp where rowid = (select rowid from temp limit 1)");
 	if ( (rv = sqlite3_exec(db, sq, NULL, NULL, &err_msg)) != SQLITE_OK)
 	{
-		log_debug("error to delect first temp: %s", err_msg);
+		log_debug("error to delect first temp: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto delect_clean;
@@ -141,7 +141,7 @@ int send_data_local(char *buf, sqlite3 *db)
 		
 	if ((rv = sqlite3_exec(db, "select * from temp", send_callback, buf, &err_msg)) != SQLITE_OK)
 	{
-		log_debug("error to read sqlite: %s", err_msg);
+		log_debug("error to read sqlite: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto send_clean;
@@ -177,7 +177,7 @@ int send_1st_data_local(char *buf, sqlite3 *db)
 		
 	if ((rv = sqlite3_exec(db, "select * from temp limit 1", send_callback, buf, &err_msg)) != SQLITE_OK)
 	{
-		log_debug("error to read sqlite: %s", err_msg);
+		log_debug("error to read sqlite: %s\n", err_msg);
 		sqlite3_free(err_msg);
 		rv = -2;
 		goto send_clean;
@@ -219,7 +219,7 @@ int find_data_local(sqlite3 *db)
 	else
 	{
 		rv = -2;
-		log_debug("Failed to prepare statement: %s", sqlite3_errmsg(db));
+		log_debug("Failed to prepare statement: %s\n", sqlite3_errmsg(db));
 		goto find_clean;
 	}
 find_clean:
