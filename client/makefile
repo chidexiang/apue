@@ -1,32 +1,37 @@
 
 NAME     ?= socket_client
-CC       ?= gcc
+#CC       ?= gcc
 ICLPATH   = ./include/
 ICLFLAG   = -I ${ICLPATH}
 LIBPATH   = ./libs/
 LIBFLAG   = -L ${LIBPATH} -lclient -lm -lsqlite3 -lpthread
 BINPATH   = ./bin/
 
+BUILD_ARCH=$(shell uname -m) #获取当前系统的 CPU 架构
+ifneq ($(findstring $(BUILD_ARCH), "x86_64" "i386"),)
+	CROSS_COMPILE=arm-linux-gnueabihf-
+endif
+
 #run:export LD_LIBRARY_PATH=`pwd`/../libs:$LD_LIBRARY_PATH
 
+#all:
+#	@make -C src
+#	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+#	@make install
+
+#arm-linux-gnueabihf-gcc:
+#	@make arm-linux-gnueabihf-gcc -C src
+#	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+#	@make install
+
+#arm-linux-gnueabihf-gcc-static:
+#	@make arm-linux-gnueabihf-gcc-static -C src
+#	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+#	@make install
+
 all:
-	@make -C src
-	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
-	@make install
-
-arm-linux-gnueabihf-gcc:
-	@make arm-linux-gnueabihf-gcc -C src
-	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
-	@make install
-
-arm-linux-gnueabihf-gcc-static:
-	@make arm-linux-gnueabihf-gcc-static -C src
-	@arm-linux-gnueabihf-gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
-	@make install
-
-static:
 	@make static -C src
-	@${CC} ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
+	@${CROSS_COMPILE}gcc ${NAME}.c ${ICLFLAG} -o ${NAME} ${LIBFLAG}
 	@make install
 
 install:

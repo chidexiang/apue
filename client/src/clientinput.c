@@ -14,9 +14,7 @@
 #include "clientinput.h"
 #include "log.h"
 
-int g_timeout = 5;
-
-void client_input(int argc, char **argv, char **servip_t, int *port, char *progname)
+void client_input(int argc, char **argv, char **servip_t, int *port, char *progname, int *second)
 {
 	const char             *hostname;
 	char                   *servip;
@@ -51,7 +49,7 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 				exit(0);
 				break;
 			case 't':
-				g_timeout = atoi(optarg);
+				*second = atoi(optarg);
 				break;
 			case 'd':
 				hostname = optarg;

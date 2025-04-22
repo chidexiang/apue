@@ -36,6 +36,7 @@
 #include "clientinput.h"
 
 #define CLIPATH "client.db"
+#define DEFAULT_TIME 5
 
 static int   sigint_flag = 0;
 
@@ -50,6 +51,7 @@ void sig_sigint(int signum)
 int main(int argc, char **argv)
 {
 	int                     port = 0;
+	int                     second = DEFAULT_TIME;
 	char                   *servip = NULL;
 	int                     sockfd;
 	int                     rv = -1;
@@ -83,7 +85,7 @@ int main(int argc, char **argv)
 	log_add_fp(fp, LOG_INFO);
 
 	//启动参数域名解析
-	client_input(argc, argv, &servip, &port, progname);
+	client_input(argc, argv, &servip, &port, progname, &second);
 
 	//与服务器建立连接
 	rv = setup_socket(&sockfd, &servaddr, servip, &port);
@@ -103,7 +105,7 @@ int main(int argc, char **argv)
 		memset(buf, 0, sizeof(buf));
 
 		//采样
-		if (difftime(start_time, end_time) >= g_timeout)
+		if (difftime(start_time, end_time) >= second)
 		{
 			gettemp(&temp, &name);//获取到温度值
 			if (name == NULL)
