@@ -33,8 +33,9 @@
 #include <netinet/tcp.h>
 
 #include "logger.h"
+#include "client_socket.h"
 
-void client_input(int argc, char **argv, char **servip_t, int *port, char *progname, int *second);
+void client_input(int argc, char **argv, socket_ctx_t *socket_ctx, char *progname, int *second);
 void print_usage(char *progname);
 
 #endif

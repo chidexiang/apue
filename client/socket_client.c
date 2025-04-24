@@ -51,11 +51,11 @@ void sig_sigint(int signum)
 
 int main(int argc, char **argv)
 {
-	int                     port = 0;
+	socket_ctx_t            socket_ctx;
+	//int                     port = 0;
 	int                     second = DEFAULT_TIME;
-	char                   *servname = NULL;
-	char                   *servip = NULL;
-	int                     sockfd;
+	//char                   *servip = NULL;
+	//int                     sockfd;
 	int                     rv = -1;
 	struct sockaddr_in      servaddr, *addr;
 	char                   *progname = basename(argv[0]);
@@ -71,6 +71,9 @@ int main(int argc, char **argv)
 	char                   *logfile="sock_client.log";
 	int                     loglevel=LOG_LEVEL_TRACE;
 	int                     logsize=10;
+
+	socket_ctx.servip = NULL;
+	socket_ctx.port = 0;
 
 	//捕捉ctrl+c信号
 	signal(SIGINT, sig_sigint);
@@ -90,10 +93,10 @@ int main(int argc, char **argv)
 	}
 
 	//启动参数域名解析
-	client_input(argc, argv, &servip, &port, progname, &second);
+	client_input(argc, argv, &socket_ctx, progname, &second);
 
 	//与服务器建立连接
-	rv = socket_connect(&sockfd, &servaddr, servip, &port);
+	rv = socket_connect(&servaddr, &socket_ctx);
 	if (rv < 0)
 	{
 		log_error("socket connect failure!\n");
@@ -129,7 +132,7 @@ int main(int argc, char **argv)
 		}
 
 		//判断连接状态
-		if (getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len) < 0)
+		if (getsockopt(socket_ctx.sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len) < 0)
 		{
 			log_error("getsockopt failure: %s\n", strerror(errno));
 			break;
@@ -137,8 +140,8 @@ int main(int argc, char **argv)
 		//连接失败尝试重连
 		if (info.tcpi_state != TCP_ESTABLISHED)
 		{
-			close(sockfd);
-			if (socket_connect(&sockfd, &servaddr, servip, &port) < 0)
+			close(socket_ctx.sockfd);
+			if (socket_connect(&servaddr, &socket_ctx) < 0)
 			{
 				log_error("socket_connect failure!\n");
 				break;
@@ -162,7 +165,7 @@ int main(int argc, char **argv)
 		if (is_empty(buf, sizeof(buf)) == 0)
 		{
 			log_info("ready to send server\n");
-			if (write(sockfd, buf, strlen(buf)) <= 0)
+			if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
 			{
 				log_error("send data to server failure and ready send data to sqlite: %s\n", strerror(errno));
 				if (cache_data_local(buf, db) < 0)//数据存入数据库
@@ -181,7 +184,7 @@ int main(int argc, char **argv)
 				log_error("read from sqlite failure\n");
 				continue;
 			}
-			if (write(sockfd, buf, strlen(buf)) <= 0)
+			if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
 			{
 				log_error("send data to server failure\n");
 				continue;
@@ -196,7 +199,7 @@ int main(int argc, char **argv)
 
 cleanup:
 	log_close();
-	close(sockfd);
+	close(socket_ctx.sockfd);
 	if (db != NULL)
 	{
 		log_info("delect sqlite\n");

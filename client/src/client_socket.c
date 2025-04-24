@@ -13,7 +13,7 @@
 
 #include "client_socket.h"
 
-int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
+int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 {
 	int                     keepalive = 1;
 	int                     keepalive_idle = 3;//空闲3s后开始探测
@@ -25,10 +25,10 @@ int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int 
 	int                     status = 1;
 	char                    port_str[6];
 
-	*sockfd = -1;
+	socket_ctx->sockfd = -1;
 
 	//客户端SOCKET连接
-	if ( (*sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+	if ( (socket_ctx->sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
 	{
 		log_error("creat socket failure: %s\n", strerror(errno));
 		return -1;
@@ -37,11 +37,11 @@ int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int 
 	//服务器端数据更新
 	memset(servaddr, 0, sizeof(*servaddr));
 	servaddr->sin_family = AF_INET;
-	servaddr->sin_port = htons(*port);
-	if (inet_pton(AF_INET, servip, &servaddr->sin_addr) != 1)//void *
+	servaddr->sin_port = htons(socket_ctx->port);
+	if (inet_pton(AF_INET, socket_ctx->servip, &servaddr->sin_addr) != 1)//void *
 	{
-		hostname = servip;
-		snprintf(port_str, sizeof(port_str), "%d", *port);
+		hostname = socket_ctx->servip;
+		snprintf(port_str, sizeof(port_str), "%d", socket_ctx->port);
 
 		memset(&hints, 0, sizeof(hints));
 		hints.ai_family = AF_INET; //支持IPV4
@@ -57,15 +57,15 @@ int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int 
 		//遍历结果链表
 		for (p = res; p != NULL; p = p->ai_next)
 		{
-			if (connect(*sockfd, p->ai_addr, p->ai_addrlen) < 0)
+			if (connect(socket_ctx->sockfd, p->ai_addr, p->ai_addrlen) < 0)
 			{
-				close(*sockfd);
-				*sockfd = -1;
+				close(socket_ctx->sockfd);
+				socket_ctx->sockfd = -1;
 				continue;
 			}
 			else
 			{
-				log_debug("connect [%d] success\n", *sockfd);
+				log_debug("connect [%d] success\n", socket_ctx->sockfd);
 				freeaddrinfo(res); 
 				break;
 			}
@@ -75,30 +75,30 @@ int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int 
 	else
 	{
 		//conncet连接
-		if (connect(*sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
+		if (connect(socket_ctx->sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
 		{
-			close(*sockfd);
-			*sockfd = -1;
+			close(socket_ctx->sockfd);
+			socket_ctx->sockfd = -1;
 			return -3;
 		}
-		log_debug("connect [%d] success\n", *sockfd);
+		log_debug("connect [%d] success\n", socket_ctx->sockfd);
 	}
 
-	if (*sockfd)
+	if (socket_ctx->sockfd)
 	{
-		if (setsockopt(*sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
+		if (setsockopt(socket_ctx->sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
 		{    
 			log_error("set keepalive failure\n");
 		}                        
-		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
+		if (setsockopt(socket_ctx->sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepalive_idle, sizeof(keepalive_idle)) < 0)
 		{    
 			log_error("set keepalive_idle failure\n");
 		}                             
-		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
+		if (setsockopt(socket_ctx->sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepalive_interval, sizeof(keepalive_interval)) < 0)
 		{    
 			log_error("set keepalive_interval failure\n");
 		}                                 
-		if (setsockopt(*sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
+		if (setsockopt(socket_ctx->sockfd, IPPROTO_TCP, TCP_KEEPCNT, &keepalive_count, sizeof(keepalive_count)) < 0)
 		{    
 			log_error("set keepalive_count failure\n");
 		}
@@ -107,14 +107,14 @@ int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int 
 	return 1;
 }
 
-void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port)
+void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 {
 	int             delay;
 	int             i;
 	int             max = 5;
 
-	close(*sockfd);
-	*sockfd = -1;
+	close(socket_ctx->sockfd);
+	socket_ctx->sockfd = -1;
 
 	i = 0;
 	while (1)
@@ -124,11 +124,11 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		log_info("attempting to reconnect in %d second...\n", delay);
 		sleep(delay);
 
-		socket_connect(sockfd, servaddr, servip, port);
+		socket_connect(servaddr, socket_ctx);
 
-		log_info("sockfd: %d\n", *sockfd);
+		log_info("sockfd: %d\n", socket_ctx->sockfd);
 
-		if (*sockfd != -1)
+		if (socket_ctx->sockfd != -1)
 		{
 			log_info("Reconnect to server!\n");
 			return ;

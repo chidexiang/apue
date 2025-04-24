@@ -33,8 +33,15 @@
 
 #include "logger.h"
 
-int socket_connect(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
-void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servip, int *port);
+typedef struct socket_ctx_s
+{
+	int        sockfd;
+	char      *servip;
+	int        port;
+} socket_ctx_t;
+
+int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
+void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
 int is_empty(char arr[], int size);
 
 #endif

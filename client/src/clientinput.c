@@ -13,7 +13,7 @@
 
 #include "clientinput.h"
 
-void client_input(int argc, char **argv, char **servip_t, int *port, char *progname, int *second)
+void client_input(int argc, char **argv, socket_ctx_t *socket_ctx, char *progname, int *second)
 {
 	char                   *servip;
 	struct option           opts[] = 
@@ -32,10 +32,10 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 		switch(ch)
 		{
 			case 'i':
-				servip = optarg;
+				socket_ctx->servip = optarg;
 				break;
 			case 'p':
-				*port = atoi(optarg);
+				socket_ctx->port = atoi(optarg);
 				break;
 			case 'h':
 				print_usage(progname);
@@ -49,9 +49,7 @@ void client_input(int argc, char **argv, char **servip_t, int *port, char *progn
 		}
 	}
 
-	*servip_t = servip;
-	
-	if (! servip || ! port)
+	if (! socket_ctx->servip || ! socket_ctx->port)
 	{
 		print_usage(progname);
 		exit(0);
