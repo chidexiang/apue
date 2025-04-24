@@ -39,7 +39,7 @@
 #define DEFAULT_TIME 5
 #define SENSOR_ID "ds18b20-1"//此处更改产品序列号
 
-static int   sigint_flag = 0;
+static int   sig_stop = 0;
 
 void sig_sigint(int signum)
 {
@@ -200,7 +200,7 @@ cleanup:
 	if (db != NULL)
 	{
 		log_info("delect sqlite\n");
-		delect_data_local(db);
+		delete_data_local(db);
 		close_local_db(&db);
 	}
 	return 0;

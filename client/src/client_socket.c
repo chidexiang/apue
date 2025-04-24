@@ -124,7 +124,7 @@ void handle_disconnection(int *sockfd, struct sockaddr_in *servaddr, char *servi
 		log_info("attempting to reconnect in %d second...\n", delay);
 		sleep(delay);
 
-		setup_socket(sockfd, servaddr, servip, port);
+		socket_connect(sockfd, servaddr, servip, port);
 
 		log_info("sockfd: %d\n", *sockfd);
 

@@ -23,7 +23,7 @@
 
 int init_local_db(char *file, sqlite3 **db);//数据库初始化并创建temp表
 int cache_data_local(char *data, sqlite3 *db);//数据存入temp表
-int delect_data_local(sqlite3 *db);//删除temp表
+int delete_data_local(sqlite3 *db);//删除temp表
 int send_data_local(char *buf, sqlite3 *db);//读取数据库中的数据并发送
 int send_callback(void *buf, int f_num, char **f_value, char **f_name);//回调函数
 int find_data_local(sqlite3 *db);//查询数据库中是否还有数据

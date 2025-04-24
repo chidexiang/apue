@@ -47,7 +47,7 @@ int gettemp(float *temp, char **chip_path)
 
 success:
 	closedir(dirp);
-	*chip_path = strdup(id_path);
+	*chip_path = id_path;
 
 	//拼接路径
 	memset(path, 0, sizeof(path));

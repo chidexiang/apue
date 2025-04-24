@@ -106,7 +106,7 @@ delect_clean:
 }
 
 //删除本地数据库第一条数据
-int delect_1st_data_local(sqlite3 *db)
+int delete_1st_data_local(sqlite3 *db)
 {
 	char                 *err_msg;
 	int                   rv = -1;
