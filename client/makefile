@@ -4,7 +4,7 @@ NAME     ?= socket_client
 ICLPATH   = ./include/
 ICLFLAG   = -I ${ICLPATH}
 LIBPATH   = ./libs/
-LIBFLAG   = -L ${LIBPATH} -lclient -lm -lsqlite3 -lpthread
+LIBFLAG   = -L ${LIBPATH} -lclient -lm -ldl -lpthread
 BINPATH   = ./bin/
 
 BUILD_ARCH=$(shell uname -m) #获取当前系统的 CPU 架构
@@ -56,3 +56,4 @@ cleanall:
 	@make delect_bin
 	@make delect_lib
 	@make delect_include
+	@make clean -C src
