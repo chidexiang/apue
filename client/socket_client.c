@@ -3,7 +3,7 @@
  *                  All rights reserved.
  *
  *       Filename:  socket_client.c
- *    Description:  This file is socket client
+ *ke clean -C src    Description:  This file is socket client
  *                 
  *        Version:  1.0.0(30/03/25)
  *         Author:  Guanjiaxu <iot25@lingyun>
@@ -52,10 +52,7 @@ void sig_sigint(int signum)
 int main(int argc, char **argv)
 {
 	socket_ctx_t            socket_ctx;
-	//int                     port = 0;
 	int                     second = DEFAULT_TIME;
-	//char                   *servip = NULL;
-	//int                     sockfd;
 	int                     rv = -1;
 	struct sockaddr_in      servaddr, *addr;
 	char                   *progname = basename(argv[0]);
