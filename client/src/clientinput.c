@@ -57,6 +57,7 @@ void client_input(int argc, char **argv, socket_ctx_t *socket_ctx, char *prognam
 	return ;
 }
 
+/*
 void print_usage(char *progname)
 {
 	log_info("%s usage: \n", progname);
@@ -67,4 +68,57 @@ void print_usage(char *progname)
 	log_info("-d(--dmname): sepcify server domain name.\n");
 
 	return ;
+}
+*/
+
+int kill_daemon(const char *process_name) 
+{
+	pid_t pid = find_daemon_pid(process_name);
+	if (pid == -1) 
+	{
+		fprintf(stderr, "Process '%s' not found\n", process_name);
+		return -1;
+	}
+		                                 
+	if (kill(pid, SIGINT) == -1)
+	{
+		fprintf(stderr, "kill SIGTERM failed\n");
+		return -1;
+	}
+}
+
+pid_t find_daemon_pid(const char *process_name) 
+{
+	char command[256];
+	FILE *fp;
+	pid_t pid = -1;
+
+	snprintf(command, sizeof(command), "pgrep -x %s", process_name);
+	fp = popen(command, "r");
+	if (fp) 
+	{
+		if (fscanf(fp, "%d", &pid) != 1)
+		{
+			pid = -1;  // 未找到
+		}
+		pclose(fp);
+	}
+	else
+	{
+		pid = -1;
+	}
+
+	return pid;
+}
+
+int time_print(time_t start_time, char *time_str, size_t len)
+{
+	struct tm *local_time = localtime(&start_time);
+
+	if ( ! strftime(time_str, len, "%Y-%m-%d %H:%M:%S", local_time))
+	{
+		return -1;
+	}
+	
+	return 0;
 }

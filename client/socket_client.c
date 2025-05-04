@@ -41,6 +41,8 @@
 
 static int   sig_stop = 0;
 
+void print_usage(char *progname);
+
 void sig_sigint(int signum)
 {
 	if (SIGINT == signum)
@@ -63,16 +65,84 @@ int main(int argc, char **argv)
 	float                   temp;
 	char                    buf[128];
 	char                   *name;
-	char                   *time_str;
+	char                    time_str[60];
 	sqlite3                *db = NULL;
 	char                   *logfile="sock_client.log";
 	int                     loglevel=LOG_LEVEL_TRACE;
 	int                     logsize=10;
+	int                     daemon_id = 1;
+	char                   *servip;
+	struct option           opts[] = 
+	{
+		{"ipaddr", required_argument, NULL, 'i'},
+		{"port", required_argument, NULL, 'p'},
+		{"dmname", required_argument, NULL, 'd'},
+		{"help", no_argument, NULL, 'h'},
+		{"time", required_argument, NULL, 't'},
+		{"debug", no_argument, NULL, 'd'},
+		{"kill", no_argument, NULL, 'k'},
+		{NULL, 0, NULL, 0}
+	};
+    int                     ch;
 
 	socket_ctx.servip = NULL;
 	socket_ctx.port = 0;
 
-	//捕捉ctrl+c信号
+	while ( (ch = getopt_long(argc, argv, "i:p:d:ht:dk", opts, NULL)) != -1)
+	{
+		switch(ch)
+		{
+			case 'i':
+				socket_ctx.servip = optarg;
+				break;
+
+			case 'p':
+				socket_ctx.port = atoi(optarg);
+				break;
+
+			case 'h':
+				print_usage(progname);
+				return 0;
+				break;
+
+			case 't':
+				second = atoi(optarg);
+				break;
+
+			case 'd':
+				daemon_id = 0;
+				logfile="console";
+				loglevel=LOG_LEVEL_DEBUG;
+				break;
+
+			case 'k':
+				if (kill_daemon(progname) == -1)
+				{
+					fprintf(stderr, "kill failed\n");
+				}
+				return 0;
+
+			default:
+				break;
+		}
+	}
+
+	if (! socket_ctx.servip || ! socket_ctx.port)
+	{
+		print_usage(progname);
+		return 0;
+	}
+
+	if ( ! daemon_id)
+	{
+		if (daemon(1, 1) == -1)
+		{
+			fprintf(stderr, "daemon failure\n");
+			return 0;
+		}
+	}
+
+	//捕捉信号
 	signal(SIGINT, sig_sigint);
 
 	//创建客户端日志
@@ -82,22 +152,10 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	//输出到控制台
 	if( log_open("console", loglevel, logsize, LOG_LOCK_DISABLE) < 0 )
 	{
 		fprintf(stderr, "Initial log system failed\n");
 		return 1;
-	}
-
-	//启动参数域名解析
-	client_input(argc, argv, &socket_ctx, progname, &second);
-
-	//与服务器建立连接
-	rv = socket_connect(&servaddr, &socket_ctx);
-	if (rv < 0)
-	{
-		log_error("socket connect failure!\n");
-		goto cleanup;
 	}
 
 	if (init_local_db(CLIPATH, &db) < 0)//初始化数据库
@@ -121,8 +179,14 @@ int main(int argc, char **argv)
 				log_error("get ds18b20 temperature failure and try again\n");
 				continue;
 			}
-			time_str = ctime(&start_time);
-			time_str[strcspn(time_str, "\n")] = '\0';//将获取到的时间后面的换行符删除
+			memset(time_str, 0, sizeof(time_str));
+			//time_str = ctime(&start_time);
+			//time_str[strcspn(time_str, "\n")] = '\0';//将获取到的时间后面的换行符删除
+			if (time_print(start_time, time_str, sizeof(time_str)) < 0)
+			{
+				log_error("get time failure\n");
+				continue;
+			}
 			snprintf(buf, sizeof(buf), "%s-%s-%f-%s", SENSOR_ID, name, temp, time_str);
 			log_info("get data [%d] data: %s\n", strlen(buf), buf);
 			end_time = start_time;
@@ -131,8 +195,13 @@ int main(int argc, char **argv)
 		//判断连接状态
 		if (getsockopt(socket_ctx.sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len) < 0)
 		{
-			log_error("getsockopt failure: %s\n", strerror(errno));
-			break;
+			//log_error("getsockopt failure: %s\n", strerror(errno));
+			if (socket_connect(&servaddr, &socket_ctx) < 0)
+			{
+				log_error("socket_connect failure!\n");
+				continue;
+			}
+			continue;
 		}
 		//连接失败尝试重连
 		if (info.tcpi_state != TCP_ESTABLISHED)
@@ -141,7 +210,7 @@ int main(int argc, char **argv)
 			if (socket_connect(&servaddr, &socket_ctx) < 0)
 			{
 				log_error("socket_connect failure!\n");
-				break;
+				continue;
 			}
 			//如果采样发送到数据库，等待之后循环依次发送
 			if (is_empty(buf, sizeof(buf)) == 0)
@@ -151,7 +220,7 @@ int main(int argc, char **argv)
 				if (cache_data_local(buf, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
-					break;
+					continue;
 				}
 			}
 			continue;
@@ -168,7 +237,7 @@ int main(int argc, char **argv)
 				if (cache_data_local(buf, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
-					break;
+					continue;
 				}
 			}
 		}
@@ -206,3 +275,16 @@ cleanup:
 	return 0;
 }
 
+void print_usage(char *progname)
+{
+	printf("%s usage: \n", progname);
+
+	printf("-i(--ipaddr): sepcify server IP address\n");
+	printf("-p(--port)  : sepcify server port.\n");
+	printf("-h(--help)  : print this help information.\n");
+	printf("-d(--dmname): sepcify server domain name.\n");
+	printf("-d(--debug) : running in debug mode\n");
+	printf("-k(--kill)  : kill daemon process\n");
+
+	return ;
+}
