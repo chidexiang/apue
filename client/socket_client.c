@@ -71,12 +71,12 @@ int main(int argc, char **argv)
 	int                     loglevel=LOG_LEVEL_TRACE;
 	int                     logsize=10;
 	int                     daemon_id = 1;
+	int                     gettemp_flag = 0;
 	char                   *servip;
 	struct option           opts[] = 
 	{
 		{"ipaddr", required_argument, NULL, 'i'},
 		{"port", required_argument, NULL, 'p'},
-		{"dmname", required_argument, NULL, 'd'},
 		{"help", no_argument, NULL, 'h'},
 		{"time", required_argument, NULL, 't'},
 		{"debug", no_argument, NULL, 'd'},
@@ -88,7 +88,7 @@ int main(int argc, char **argv)
 	socket_ctx.servip = NULL;
 	socket_ctx.port = 0;
 
-	while ( (ch = getopt_long(argc, argv, "i:p:d:ht:dk", opts, NULL)) != -1)
+	while ( (ch = getopt_long(argc, argv, "i:p:ht:dk", opts, NULL)) != -1)
 	{
 		switch(ch)
 		{
@@ -152,12 +152,6 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-	if( log_open("console", loglevel, logsize, LOG_LOCK_DISABLE) < 0 )
-	{
-		fprintf(stderr, "Initial log system failed\n");
-		return 1;
-	}
-
 	if (init_local_db(CLIPATH, &db) < 0)//初始化数据库
 	{
 		log_error("init sqlite failure\n");
@@ -167,6 +161,7 @@ int main(int argc, char **argv)
 	while ( ! sig_stop)
 	{
 		memset(buf, 0, sizeof(buf));
+		gettemp_flag = 0;
 
 		//获取当前时间
 		time(&start_time);
@@ -180,8 +175,8 @@ int main(int argc, char **argv)
 				continue;
 			}
 			memset(time_str, 0, sizeof(time_str));
-			//time_str = ctime(&start_time);
-			//time_str[strcspn(time_str, "\n")] = '\0';//将获取到的时间后面的换行符删除
+
+			//获取采样时间字符串
 			if (time_print(start_time, time_str, sizeof(time_str)) < 0)
 			{
 				log_error("get time failure\n");
@@ -189,34 +184,35 @@ int main(int argc, char **argv)
 			}
 			snprintf(buf, sizeof(buf), "%s-%s-%f-%s", SENSOR_ID, name, temp, time_str);
 			log_info("get data [%d] data: %s\n", strlen(buf), buf);
+			gettemp_flag = 1;
 			end_time = start_time;
 		}
 
 		//判断连接状态
-		if (getsockopt(socket_ctx.sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len) < 0)
-		{
-			//log_error("getsockopt failure: %s\n", strerror(errno));
-			if (socket_connect(&servaddr, &socket_ctx) < 0)
-			{
-				log_error("socket_connect failure!\n");
-				continue;
-			}
-			continue;
-		}
 		//连接失败尝试重连
-		if (info.tcpi_state != TCP_ESTABLISHED)
+		if (socket_static(socket_ctx.sockfd) == -1)
 		{
 			close(socket_ctx.sockfd);
 			if (socket_connect(&servaddr, &socket_ctx) < 0)
 			{
-				log_error("socket_connect failure!\n");
-				continue;
+				//log_error("socket_connect failure!\n");
 			}
-			//如果采样发送到数据库，等待之后循环依次发送
-			if (is_empty(buf, sizeof(buf)) == 0)
+			//如果有采样，重连成功则发送，否则存入数据库
+			if (gettemp_flag == 1)
 			{
-				log_error("write to server failure and ready send data to sqlite\n");
-				 
+				if (socket_static(socket_ctx.sockfd) == 1)
+				{
+					log_info("ready to send server\n");
+					if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
+					{
+						log_error("write to server failure and ready send data to sqlite\n");
+					}
+					else
+					{
+						continue;
+					}
+				}
+
 				if (cache_data_local(buf, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
@@ -228,7 +224,7 @@ int main(int argc, char **argv)
 
 		//连接成功发送数据
 		//如果采样发送到服务器
-		if (is_empty(buf, sizeof(buf)) == 0)
+		if (gettemp_flag == 1)
 		{
 			log_info("ready to send server\n");
 			if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
@@ -282,7 +278,7 @@ void print_usage(char *progname)
 	printf("-i(--ipaddr): sepcify server IP address\n");
 	printf("-p(--port)  : sepcify server port.\n");
 	printf("-h(--help)  : print this help information.\n");
-	printf("-d(--dmname): sepcify server domain name.\n");
+	printf("-t(--time)  : change the default sampling time.\n");
 	printf("-d(--debug) : running in debug mode\n");
 	printf("-k(--kill)  : kill daemon process\n");
 

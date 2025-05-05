@@ -151,3 +151,18 @@ int is_empty(char arr[], int size)
 		    return 1; // 所有元素均为 0，视为“空”
 }
 
+int socket_static(int sockfd)
+{
+	struct tcp_info         info;
+	int                     len = sizeof(info);
+
+	getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+	if (info.tcpi_state == TCP_ESTABLISHED)
+	{
+		return 1;
+	}
+	else
+	{
+		return -1;
+	}
+}

@@ -43,5 +43,6 @@ typedef struct socket_ctx_s
 int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
 void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
 int is_empty(char arr[], int size);
+int socket_static(int sockfd);
 
 #endif
