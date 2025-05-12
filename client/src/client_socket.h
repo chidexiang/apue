@@ -38,11 +38,12 @@ typedef struct socket_ctx_s
 	int        sockfd;
 	char      *servip;
 	int        port;
+	int        connected;
 } socket_ctx_t;
 
-int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
+int socket_connect(socket_ctx_t *socket_ctx);
 void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx);
 int is_empty(char arr[], int size);
-int socket_static(int sockfd);
+int socket_status(socket_ctx_t *sock);
 
 #endif

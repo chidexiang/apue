@@ -37,7 +37,7 @@
 
 #define CLIPATH "client.db"
 #define DEFAULT_TIME 5
-#define SENSOR_ID "ds18b20-1"//此处更改产品序列号
+#define SENSOR_ID "rpi-001"//此处更改产品序列号
 
 static int   sig_stop = 0;
 
@@ -56,7 +56,6 @@ int main(int argc, char **argv)
 	socket_ctx_t            socket_ctx;
 	int                     second = DEFAULT_TIME;
 	int                     rv = -1;
-	struct sockaddr_in      servaddr, *addr;
 	char                   *progname = basename(argv[0]);
 	FILE                   *fp;
 	struct tcp_info         info;
@@ -127,13 +126,13 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (! socket_ctx.servip || ! socket_ctx.port)
+	if ( !socket_ctx.servip || !socket_ctx.port)
 	{
 		print_usage(progname);
 		return 0;
 	}
 
-	if ( ! daemon_id)
+	if ( !daemon_id)
 	{
 		if (daemon(1, 1) == -1)
 		{
@@ -158,7 +157,7 @@ int main(int argc, char **argv)
 		goto cleanup;
 	}
 
-	while ( ! sig_stop)
+	while ( !sig_stop)
 	{
 		memset(buf, 0, sizeof(buf));
 		gettemp_flag = 0;
@@ -174,10 +173,10 @@ int main(int argc, char **argv)
 				log_error("get ds18b20 temperature failure and try again\n");
 				continue;
 			}
-			memset(time_str, 0, sizeof(time_str));
 
 			//获取采样时间字符串
-			if (time_print(start_time, time_str, sizeof(time_str)) < 0)
+			memset(time_str, 0, sizeof(time_str));
+			if (get_time(start_time, time_str, sizeof(time_str)) < 0)
 			{
 				log_error("get time failure\n");
 				continue;
@@ -190,33 +189,19 @@ int main(int argc, char **argv)
 
 		//判断连接状态
 		//连接失败尝试重连
-		if (socket_static(socket_ctx.sockfd) == -1)
+		if ( !socket_status(&socket_ctx))
 		{
-			close(socket_ctx.sockfd);
-			if (socket_connect(&servaddr, &socket_ctx) < 0)
-			{
-				//log_error("socket_connect failure!\n");
-			}
-			//如果有采样，重连成功则发送，否则存入数据库
-			if (gettemp_flag == 1)
-			{
-				if (socket_static(socket_ctx.sockfd) == 1)
-				{
-					log_info("ready to send server\n");
-					if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
-					{
-						log_error("write to server failure and ready send data to sqlite\n");
-					}
-					else
-					{
-						continue;
-					}
-				}
+			socket_connect(&socket_ctx);
+		}
 
+		if ( !socket_status(&socket_ctx))
+		{
+			//如果有采样，重连失败则存入数据库
+			if ( gettemp_flag )
+			{
 				if (cache_data_local(buf, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
-					continue;
 				}
 			}
 			continue;

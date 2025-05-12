@@ -16,7 +16,7 @@
 int gettemp(float *temp, char **chip_path)
 {
 	int                  fd;
-	int                  rv;
+	int                  rv = 0;
 	char                *ptr;
 	DIR                 *dirp;
 	char                *id_path;
@@ -57,7 +57,8 @@ success:
 	if ( (fd = open(path, O_RDONLY)) < 0)
 	{
 		log_error("open file failure: %s\n", strerror(errno));
-		return -3;
+		rv = -3;
+		goto clean;
 	}
 
 	//读取其中内容
@@ -65,14 +66,16 @@ success:
 	if (read(fd, buf, sizeof(buf)) < 0)
 	{
 		log_error(" read faile failure: %s\n", strerror(errno));
-		return -4;
+		rv = -4;
+		goto clean;
 	}
 
 	//读出温度值
 	if((ptr=strstr(buf, "t=")) == NULL)
 	{
 		log_error("read temp failure: %s\n", strerror(errno));
-		return -5;
+		rv = -5;
+		goto clean;
 	}
 
 	ptr += 2;
@@ -80,8 +83,9 @@ success:
 	*temp=atof(ptr)/1000;
 
 //	printf("%f\n", *temp);
+clean:
 
 	close(fd);
 
-	return 0;
+	return rv;
 }

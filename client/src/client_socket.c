@@ -13,7 +13,7 @@
 
 #include "client_socket.h"
 
-int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
+int socket_connect(socket_ctx_t *socket_ctx)
 {
 	int                     keepalive = 1;
 	int                     keepalive_idle = 3;//空闲3s后开始探测
@@ -21,10 +21,11 @@ int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 	int                     keepalive_count = 1;//最多发送1个探测包
 	const char             *hostname;
 	struct addrinfo         hints, *res, *p;
-	struct sockaddr_in     *addr;
+	struct sockaddr_in      servaddr;
 	int                     status = 1;
 	char                    port_str[6];
 
+	close(socket_ctx->sockfd);
 	socket_ctx->sockfd = -1;
 
 	//客户端SOCKET连接
@@ -35,10 +36,10 @@ int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 	}
 
 	//服务器端数据更新
-	memset(servaddr, 0, sizeof(*servaddr));
-	servaddr->sin_family = AF_INET;
-	servaddr->sin_port = htons(socket_ctx->port);
-	if (inet_pton(AF_INET, socket_ctx->servip, &servaddr->sin_addr) != 1)//void *
+	memset(&servaddr, 0, sizeof(servaddr));
+	servaddr.sin_family = AF_INET;
+	servaddr.sin_port = htons(socket_ctx->port);
+	if (inet_pton(AF_INET, socket_ctx->servip, &servaddr.sin_addr) != 1)//void *
 	{
 		hostname = socket_ctx->servip;
 		snprintf(port_str, sizeof(port_str), "%d", socket_ctx->port);
@@ -75,7 +76,7 @@ int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 	else
 	{
 		//conncet连接
-		if (connect(socket_ctx->sockfd, (struct sockaddr *)servaddr, sizeof(*servaddr)) < 0)
+		if (connect(socket_ctx->sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
 		{
 			close(socket_ctx->sockfd);
 			socket_ctx->sockfd = -1;
@@ -107,6 +108,7 @@ int socket_connect(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 	return 1;
 }
 
+/*
 void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx)
 {
 	int             delay;
@@ -136,6 +138,7 @@ void handle_disconnection(struct sockaddr_in *servaddr, socket_ctx_t *socket_ctx
 		i++;
 	}
 }
+*/
 
 int is_empty(char arr[], int size) 
 {
@@ -151,18 +154,40 @@ int is_empty(char arr[], int size)
 		    return 1; // 所有元素均为 0，视为“空”
 }
 
-int socket_static(int sockfd)
+int socket_status(socket_ctx_t *sock)
 {
 	struct tcp_info         info;
 	int                     len = sizeof(info);
+	int                     changed = 0;
 
-	getsockopt(sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
+	if( !sock )
+	{
+		return 0;
+	}
+	 
+	if( sock->sockfd < 0 )
+	{
+		changed = sock->connected ? 1 : 0;
+		sock->connected = 0;
+		goto out;
+	}
+
+	getsockopt(sock->sockfd, IPPROTO_TCP, TCP_INFO, &info, (socklen_t *)&len);
 	if (info.tcpi_state == TCP_ESTABLISHED)
 	{
-		return 1;
+		changed = !sock->connected ? 1 : 0;
+		sock->connected = 1;
 	}
 	else
 	{
-		return -1;
+		changed = sock->connected ? 1 : 0;
+		sock->connected = 0;
 	}
+
+out:
+	if( changed )
+	{
+		log_info("socket status got %s\n", sock->connected?"connected":"disconnected");
+	}
+	return sock->connected;
 }
