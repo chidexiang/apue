@@ -111,14 +111,3 @@ pid_t find_daemon_pid(const char *process_name)
 	return pid;
 }
 
-int get_time(time_t start_time, char *time_str, size_t len)
-{
-	struct tm *local_time = localtime(&start_time);
-
-	if ( ! strftime(time_str, len, "%Y-%m-%d %H:%M:%S", local_time))
-	{
-		return -1;
-	}
-	
-	return 0;
-}

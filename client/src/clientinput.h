@@ -39,6 +39,5 @@ void client_input(int argc, char **argv, socket_ctx_t *socket_ctx, char *prognam
 void print_usage(char *progname);
 int kill_daemon(const char *process_name);
 pid_t find_daemon_pid(const char *process_name);
-int get_time(time_t start_time, char *time_str, size_t len);
 
 #endif

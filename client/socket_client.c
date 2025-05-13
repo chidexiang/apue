@@ -34,10 +34,10 @@
 #include "logger.h"
 #include "client_socket.h"
 #include "clientinput.h"
+#include "packet.h"
 
 #define CLIPATH "client.db"
 #define DEFAULT_TIME 5
-#define SENSOR_ID "rpi-001"//此处更改产品序列号
 
 static int   sig_stop = 0;
 
@@ -56,6 +56,7 @@ int main(int argc, char **argv)
 	socket_ctx_t            socket_ctx;
 	int                     second = DEFAULT_TIME;
 	int                     rv = -1;
+	int                     format = 0;
 	char                   *progname = basename(argv[0]);
 	FILE                   *fp;
 	struct tcp_info         info;
@@ -64,7 +65,7 @@ int main(int argc, char **argv)
 	float                   temp;
 	char                    buf[128];
 	char                   *name;
-	char                    time_str[60];
+	//char                    time_str[60];
 	sqlite3                *db = NULL;
 	char                   *logfile="sock_client.log";
 	int                     loglevel=LOG_LEVEL_TRACE;
@@ -72,6 +73,9 @@ int main(int argc, char **argv)
 	int                     daemon_id = 1;
 	int                     gettemp_flag = 0;
 	char                   *servip;
+	int                     sn = 1;
+	pack_proc_t             pack_proc = packet_segmented_pack;
+	pack_info_t             pack;
 	struct option           opts[] = 
 	{
 		{"ipaddr", required_argument, NULL, 'i'},
@@ -80,14 +84,16 @@ int main(int argc, char **argv)
 		{"time", required_argument, NULL, 't'},
 		{"debug", no_argument, NULL, 'd'},
 		{"kill", no_argument, NULL, 'k'},
+		{"format", required_argument, NULL, 'f'},
+		{"sn", required_argument, NULL, 's'},
 		{NULL, 0, NULL, 0}
 	};
     int                     ch;
 
 	socket_ctx.servip = NULL;
-	socket_ctx.port = 0;
+	socket_ctx.port = -1;
 
-	while ( (ch = getopt_long(argc, argv, "i:p:ht:dk", opts, NULL)) != -1)
+	while ( (ch = getopt_long(argc, argv, "i:p:ht:dkf:s:", opts, NULL)) != -1)
 	{
 		switch(ch)
 		{
@@ -120,6 +126,28 @@ int main(int argc, char **argv)
 					fprintf(stderr, "kill failed\n");
 				}
 				return 0;
+
+			case 'f':
+				format = atoi(optarg);
+				if (format == 0)
+				{
+					pack_proc = packet_segmented_pack;
+				}
+				else if (format == 1)
+				{
+					pack_proc = packet_json_pack;
+				}
+				else
+				{
+					fprintf(stderr, "format select failure\n");
+					print_usage(progname);
+					return 0;
+				}
+				break;
+
+			case 's':
+				sn = atoi(optarg);
+				break;
 
 			default:
 				break;
@@ -168,20 +196,35 @@ int main(int argc, char **argv)
 		//采样
 		if (difftime(start_time, end_time) >= second)
 		{
-			if (gettemp(&temp, &name) < 0)//获取到温度值
+			if (gettemp(&pack.temper, &name) < 0)//获取到温度值
 			{
 				log_error("get ds18b20 temperature failure and try again\n");
 				continue;
 			}
 
 			//获取采样时间字符串
-			memset(time_str, 0, sizeof(time_str));
-			if (get_time(start_time, time_str, sizeof(time_str)) < 0)
+			if (get_time(start_time, pack.time_str, sizeof(pack.time_str)) < 0)
 			{
 				log_error("get time failure\n");
 				continue;
 			}
-			snprintf(buf, sizeof(buf), "%s-%s-%f-%s", SENSOR_ID, name, temp, time_str);
+
+			//生成产品序列号
+			if (get_devid(pack.devid, sizeof(pack.devid), sn) < 0)
+			{
+				log_error("get devid failure\n");
+				continue;
+			}
+
+			//数据打包
+			if (pack_proc(&pack, (uint8_t *)buf, sizeof(buf)) < 0)
+			{
+				log_error("pack data failure\n");
+				printf("buf: %s\n");
+				break;
+				continue;
+			}
+
 			log_info("get data [%d] data: %s\n", strlen(buf), buf);
 			gettemp_flag = 1;
 			end_time = start_time;
@@ -266,6 +309,10 @@ void print_usage(char *progname)
 	printf("-t(--time)  : change the default sampling time.\n");
 	printf("-d(--debug) : running in debug mode\n");
 	printf("-k(--kill)  : kill daemon process\n");
+	printf("-f(--format): choose the format you want to print\n");
+	printf("              input \"0\": segmented print\n");
+	printf("              input \"1\": json print\n");
+	printf("-s(--sn)    : input device id\n");
 
 	return ;
 }

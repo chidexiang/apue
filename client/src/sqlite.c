@@ -34,7 +34,8 @@ int init_local_db(char *file, sqlite3 **db)
 	{   
 		log_debug("error to create table: %s\n", err_msg);
 		sqlite3_free(err_msg);
-		rv = -2; 
+		rv = -2;
+		close_local_db(db);
 		goto init_clean;
 	}   
 						
