@@ -65,7 +65,6 @@ int main(int argc, char **argv)
 	float                   temp;
 	char                    buf[128];
 	char                   *name;
-	//char                    time_str[60];
 	sqlite3                *db = NULL;
 	char                   *logfile="sock_client.log";
 	int                     loglevel=LOG_LEVEL_TRACE;
@@ -136,6 +135,10 @@ int main(int argc, char **argv)
 				else if (format == 1)
 				{
 					pack_proc = packet_json_pack;
+				}
+				else if (format == 2)
+				{
+					pack_proc = packet_tlv_pack;
 				}
 				else
 				{
@@ -220,12 +223,10 @@ int main(int argc, char **argv)
 			if (pack_proc(&pack, (uint8_t *)buf, sizeof(buf)) < 0)
 			{
 				log_error("pack data failure\n");
-				printf("buf: %s\n");
-				break;
 				continue;
 			}
 
-			log_info("get data [%d] data: %s\n", strlen(buf), buf);
+			//log_info("get data [%d] data: %s\n", strlen(buf), buf);
 			gettemp_flag = 1;
 			end_time = start_time;
 		}

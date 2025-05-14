@@ -16,76 +16,73 @@
 int socket_connect(socket_ctx_t *socket_ctx)
 {
 	int                     keepalive = 1;
-	int                     keepalive_idle = 3;//空闲3s后开始探测
-	int                     keepalive_interval = 1;//探测包每隔1秒发送一次
-	int                     keepalive_count = 1;//最多发送1个探测包
-	const char             *hostname;
+	int                     keepalive_idle = 7200;//空闲7200s后开始探测
+	int                     keepalive_interval = 75;//探测包每隔75秒发送一次
+	int                     keepalive_count = 9;//最多发送9个探测包
 	struct addrinfo         hints, *res, *p;
-	struct sockaddr_in      servaddr;
+	struct in_addr          inaddr;
 	int                     status = 1;
-	char                    port_str[6];
+	char                    port_str[10];
+	struct sockaddr_in      addr;
+	int                     len = sizeof(addr);
+	int                     rv = 1;
+
+	if ( !socket_ctx)
+	{
+		return -1;
+	}
 
 	close(socket_ctx->sockfd);
 	socket_ctx->sockfd = -1;
 
-	//客户端SOCKET连接
-	if ( (socket_ctx->sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-	{
-		log_error("creat socket failure: %s\n", strerror(errno));
-		return -1;
-	}
-
 	//服务器端数据更新
-	memset(&servaddr, 0, sizeof(servaddr));
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_port = htons(socket_ctx->port);
-	if (inet_pton(AF_INET, socket_ctx->servip, &servaddr.sin_addr) != 1)//void *
+	memset(&hints, 0, sizeof(struct addrinfo));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	if (inet_aton(socket_ctx->servip, &inaddr) ) //输入为IP地址
 	{
-		hostname = socket_ctx->servip;
-		snprintf(port_str, sizeof(port_str), "%d", socket_ctx->port);
-
-		memset(&hints, 0, sizeof(hints));
-		hints.ai_family = AF_INET; //支持IPV4
-		hints.ai_socktype = SOCK_STREAM; //TCP
-
-		//DNS解析
-		if((status = getaddrinfo(hostname, port_str, &hints, &res)) != 0)
-		{
-			log_error("getaddrinfo error: %s\n", strerror(errno));
-			exit(0);
-		}
-
-		//遍历结果链表
-		for (p = res; p != NULL; p = p->ai_next)
-		{
-			if (connect(socket_ctx->sockfd, p->ai_addr, p->ai_addrlen) < 0)
-			{
-				close(socket_ctx->sockfd);
-				socket_ctx->sockfd = -1;
-				continue;
-			}
-			else
-			{
-				log_debug("connect [%d] success\n", socket_ctx->sockfd);
-				freeaddrinfo(res); 
-				break;
-			}
-			return -3;
-		}
+		hints.ai_flags |= AI_NUMERICHOST;
 	}
-	else
+
+	snprintf(port_str, sizeof(port_str), "%d", socket_ctx->port);
+
+	//DNS解析
+	if ((status = getaddrinfo(socket_ctx->servip, port_str, &hints, &res)) != 0)
 	{
-		//conncet连接
-		if (connect(socket_ctx->sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+		log_error("getaddrinfo error: %s\n", strerror(errno));
+		rv = -1;
+	}
+
+	//遍历结果链表
+	for (p = res; p != NULL; p = p->ai_next)
+	{
+		//客户端SOCKET连接
+		if ( (socket_ctx->sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+		{
+			log_error("creat socket failure: %s\n", strerror(errno));
+			rv = -2;
+			continue;
+		}
+
+		if ( connect(socket_ctx->sockfd, p->ai_addr, p->ai_addrlen) < 0 )
 		{
 			close(socket_ctx->sockfd);
 			socket_ctx->sockfd = -1;
-			return -3;
+			rv = -3;
+			continue;
 		}
-		log_debug("connect [%d] success\n", socket_ctx->sockfd);
+		else
+		{
+			log_debug("connect [%d] success\n", socket_ctx->sockfd);
+			break;
+		}
 	}
 
-	if (socket_ctx->sockfd)
+	freeaddrinfo(res);
+
+	if (rv > 0)
 	{
 		if (setsockopt(socket_ctx->sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0)
 		{    
@@ -105,7 +102,7 @@ int socket_connect(socket_ctx_t *socket_ctx)
 		}
 	}
 
-	return 1;
+	return rv;
 }
 
 /*
