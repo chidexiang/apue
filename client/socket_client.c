@@ -199,7 +199,7 @@ int main(int argc, char **argv)
 		//采样
 		if (difftime(start_time, end_time) >= second)
 		{
-			if (gettemp(&pack.temper, &name) < 0)//获取到温度值
+			if (gettemp(&pack.temper, NULL) < 0)//获取到温度值
 			{
 				log_error("get ds18b20 temperature failure and try again\n");
 				continue;

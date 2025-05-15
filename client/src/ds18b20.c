@@ -47,11 +47,15 @@ int gettemp(float *temp, char **chip_path)
 
 success:
 	closedir(dirp);
-	*chip_path = id_path;
+
+	if ( chip_path)
+	{
+		*chip_path = id_path;
+	}
 
 	//拼接路径
 	memset(path, 0, sizeof(path));
-	snprintf(path, sizeof(path), "%s%s/w1_slave", PATH, *chip_path);
+	snprintf(path, sizeof(path), "%s%s/w1_slave", PATH, id_path);
 
 	//打开温度传感器文件
 	if ( (fd = open(path, O_RDONLY)) < 0)
