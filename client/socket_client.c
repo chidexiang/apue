@@ -35,9 +35,11 @@
 #include "client_socket.h"
 #include "clientinput.h"
 #include "packet.h"
+#include "proc.h"
 
 #define CLIPATH "client.db"
 #define DEFAULT_TIME 5
+#define PIDFILE "./socket.pid"
 
 static int   sig_stop = 0;
 
@@ -46,6 +48,22 @@ void print_usage(char *progname);
 void sig_sigint(int signum)
 {
 	if (SIGINT == signum)
+	{
+		sig_stop = 1;
+	}
+}
+
+void sig_sigterm(int signum)
+{
+	if (SIGTERM == signum)
+	{
+		sig_stop = 1;
+	}
+}
+
+void sig_sigkill(int signum)
+{
+	if (SIGKILL == signum)
 	{
 		sig_stop = 1;
 	}
@@ -66,8 +84,9 @@ int main(int argc, char **argv)
 	char                    buf[128];
 	char                   *name;
 	sqlite3                *db = NULL;
-	char                   *logfile="sock_client.log";
-	int                     loglevel=LOG_LEVEL_TRACE;
+	//char                   *logfile = "console";
+	char                   *logfile = "sock_client.log";
+	int                     loglevel = LOG_LEVEL_TRACE;
 	int                     logsize=10;
 	int                     daemon_id = 1;
 	int                     gettemp_flag = 0;
@@ -163,23 +182,22 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-	if ( !daemon_id)
-	{
-		if (daemon(1, 1) == -1)
-		{
-			fprintf(stderr, "daemon failure\n");
-			return 0;
-		}
-	}
-
 	//捕捉信号
 	signal(SIGINT, sig_sigint);
+	signal(SIGTERM, sig_sigterm);
+	signal(SIGKILL, sig_sigkill);
 
 	//创建客户端日志
 	if( log_open(logfile, loglevel, logsize, LOG_LOCK_DISABLE) < 0 )
 	{
 		fprintf(stderr, "Initial log system failed\n");
 		return 1;
+	}
+
+	//检查程序是否重复运行以及设置守护进程
+	if( check_set_program_running(daemon_id, PIDFILE) < 0 )
+	{
+		goto cleanup;
 	}
 
 	if (init_local_db(CLIPATH, &db) < 0)//初始化数据库
@@ -191,6 +209,7 @@ int main(int argc, char **argv)
 	while ( !sig_stop)
 	{
 		memset(buf, 0, sizeof(buf));
+		memset(&pack, 0, sizeof(pack_info_t));
 		gettemp_flag = 0;
 
 		//获取当前时间
@@ -220,13 +239,13 @@ int main(int argc, char **argv)
 			}
 
 			//数据打包
-			if (pack_proc(&pack, (uint8_t *)buf, sizeof(buf)) < 0)
+			if ((rv = pack_proc(&pack, (uint8_t *)buf, sizeof(buf))) < 0)
 			{
 				log_error("pack data failure\n");
 				continue;
 			}
 
-			//log_info("get data [%d] data: %s\n", strlen(buf), buf);
+			log_info("get data [%d] data: %s\n", rv, buf);
 			gettemp_flag = 1;
 			end_time = start_time;
 		}
@@ -243,7 +262,7 @@ int main(int argc, char **argv)
 			//如果有采样，重连失败则存入数据库
 			if ( gettemp_flag )
 			{
-				if (cache_data_local(buf, db) < 0)//数据存入数据库
+				if (cache_data_local(&pack, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
 				}
@@ -256,41 +275,46 @@ int main(int argc, char **argv)
 		if (gettemp_flag == 1)
 		{
 			log_info("ready to send server\n");
-			if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
+			if (write(socket_ctx.sockfd, buf, rv) <= 0)
 			{
 				log_error("send data to server failure and ready send data to sqlite: %s\n", strerror(errno));
-				if (cache_data_local(buf, db) < 0)//数据存入数据库
+				if (cache_data_local(&pack, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
-					continue;
 				}
 			}
+			continue;
 		}
 
 		//检查数据数据库中是否有数据
-		if ((rv = find_data_local(db)) == 1)
+		if (send_1st_data_local(&pack, db) != 0)//读取数据库的第一条数据
 		{
-			if (send_1st_data_local(buf, db) < 0)//读取数据库的第一条数据
-			{
-				log_error("read from sqlite failure\n");
-				continue;
-			}
-			if (write(socket_ctx.sockfd, buf, strlen(buf)) <= 0)
-			{
-				log_error("send data to server failure\n");
-				continue;
-			}
-			if (delete_1st_data_local(db) < 0)//删除temp表的第一条数据
-			{
-				log_error("delete data from sqlite failure\n");
-				continue;
-			}
+			continue;
+		}
+
+		//数据打包
+		if ((rv = pack_proc(&pack, (uint8_t *)buf, sizeof(buf))) < 0)
+		{
+			log_error("pack data failure\n");
+			continue;
+		}
+
+		if (write(socket_ctx.sockfd, buf, rv) <= 0)
+		{
+			log_error("send data to server failure\n");
+			continue;
+		}
+		if (delete_1st_data_local(db) < 0)//删除temp表的第一条数据
+		{
+			log_error("delete data from sqlite failure\n");
+			continue;
 		}
 	}
 
 cleanup:
 	log_close();
 	close(socket_ctx.sockfd);
+	unlink(PIDFILE);
 	if (db != NULL)
 	{
 		log_info("delect sqlite\n");

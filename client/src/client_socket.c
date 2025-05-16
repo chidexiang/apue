@@ -32,8 +32,8 @@ int socket_connect(socket_ctx_t *socket_ctx)
 		return -1;
 	}
 
-	close(socket_ctx->sockfd);
 	socket_ctx->sockfd = -1;
+	close(socket_ctx->sockfd);
 
 	//服务器端数据更新
 	memset(&hints, 0, sizeof(struct addrinfo));

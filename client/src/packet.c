@@ -41,6 +41,7 @@ int get_devid(char *devid, int size, int sn)
 int packet_segmented_pack(pack_info_t *pack, uint8_t *pack_buf, int size)
 {
 	char             *buf = (char *)pack_buf;
+	int               rv = -1;
 
 	if( !pack || !buf || size<=0 )
 	{
@@ -49,14 +50,15 @@ int packet_segmented_pack(pack_info_t *pack, uint8_t *pack_buf, int size)
 	}
 					 
 	memset(buf, 0, size);
-	snprintf(buf, size, "%s-%.3f-%s", pack->devid, pack->temper, pack->time_str);
+	rv = snprintf(buf, size, "%s-%.3f-%s", pack->devid, pack->temper, pack->time_str);
 
-	return 0;
+	return rv;
 }
 
 int packet_json_pack(pack_info_t *pack, uint8_t *pack_buf, int size)
 {
 	char             *buf = (char *)pack_buf;
+	int               rv = -1;
 
 	if( !pack || !buf || size<=0 )
 	{
@@ -64,9 +66,9 @@ int packet_json_pack(pack_info_t *pack, uint8_t *pack_buf, int size)
 	}
 					 
 	memset(buf, 0, size);
-	snprintf(buf, size, "{\"devid\":\"%s\", \"temperature\":\"%.3f\", \"time\":\"%s\"}", pack->devid, pack->temper, pack->time_str);
+	rv = snprintf(buf, size, "{\"devid\":\"%s\", \"temperature\":\"%.3f\", \"time\":\"%s\"}", pack->devid, pack->temper, pack->time_str);
 
-	return 0;
+	return rv;
 }
 
 //大小端字节序转换
@@ -141,6 +143,7 @@ int packet_tlv_pack(pack_info_t *pack_info, uint8_t *pack_buf, int size)
 	//TLV CRC(2B)
 	crc = crc_itu_t(pack_buf, ofset);
 	*(uint16_t *)(pack_buf+ofset) = crc;
+	ofset += 2;
 
-	return 0;
+	return ofset;
 }
