@@ -29,6 +29,7 @@
 #include "serverinit.h"
 #include "serverinput.h"
 #include "log.h"
+#include "unpacket.h"
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
@@ -44,11 +45,12 @@ int main(int argc, char **argv)
 	int                     found;
 	char                   *progname = basename(argv[0]);
 	char                   *servip = NULL;
-	char					buf[51];
+	char					buf[128];
 	int						i;
 	int                     fds_array[1024];
 	fd_set                  rdset;
-	FILE                    *fp;
+	FILE                   *fp;
+	pack_info_t             pack; 
 
 	//创建服务器端日志
 	fp = fopen("server.txt", "a+");
@@ -156,7 +158,22 @@ int main(int argc, char **argv)
 						continue;
 					}
 					buf[rv] = '\0';
-					log_info("socket[%d] read: %s", fds_array[i], buf);
+
+					if (rv == 37)
+					{
+						if (packet_tlv_unpack(&pack, (uint8_t *)buf, rv) == 0)
+						{
+							log_info("receive TLV and unpack");
+							snprintf(buf, rv, "%s-%.3f-%s", pack.devid, pack.temper, pack.time_str);
+						}
+						else
+						{
+							log_error("receive TLV but unpack failure");
+							continue;
+						}
+					}
+
+					log_info("socket[%d] read [%d] data: %s", fds_array[i], rv, buf);
 					log_info("send data to sqlite");
 					init_local_db();//初始化数据库
 					cache_data_local(buf);//数据存入数据库

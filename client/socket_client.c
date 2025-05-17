@@ -245,7 +245,6 @@ int main(int argc, char **argv)
 				continue;
 			}
 
-			log_info("get data [%d] data: %s\n", rv, buf);
 			gettemp_flag = 1;
 			end_time = start_time;
 		}
@@ -262,6 +261,7 @@ int main(int argc, char **argv)
 			//如果有采样，重连失败则存入数据库
 			if ( gettemp_flag )
 			{
+				log_info("send data to sqlite\n");
 				if (cache_data_local(&pack, db) < 0)//数据存入数据库
 				{
 					log_error("cache data to sqlite failure\n");
@@ -299,6 +299,7 @@ int main(int argc, char **argv)
 			continue;
 		}
 
+		log_info("get data from sqlite and send to server\n");
 		if (write(socket_ctx.sockfd, buf, rv) <= 0)
 		{
 			log_error("send data to server failure\n");
